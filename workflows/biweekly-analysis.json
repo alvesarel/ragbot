@@ -1,0 +1,362 @@
+{
+  "name": "Bi-Weekly Analysis Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 1,15 * *"
+            }
+          ]
+        }
+      },
+      "id": "biweekly-trigger",
+      "name": "Every 2 Weeks (1st & 15th)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Stage drop-off analysis (last 14 days)\nWITH stage_counts AS (\n  SELECT \n    current_stage,\n    status,\n    COUNT(*) as count\n  FROM conversation_states\n  WHERE first_contact_at >= NOW() - INTERVAL '14 days'\n  GROUP BY current_stage, status\n),\ntotal AS (\n  SELECT COUNT(*) as total_convos\n  FROM conversation_states\n  WHERE first_contact_at >= NOW() - INTERVAL '14 days'\n)\nSELECT \n  sc.current_stage,\n  sc.status,\n  sc.count,\n  ROUND((sc.count::numeric / NULLIF(t.total_convos, 0)) * 100, 1) as percentage\nFROM stage_counts sc, total t\nORDER BY \n  CASE sc.current_stage\n    WHEN 'greeting' THEN 1\n    WHEN 'discovery' THEN 2\n    WHEN 'qualification' THEN 3\n    WHEN 'value_building' THEN 4\n    WHEN 'scheduling' THEN 5\n    WHEN 'confirmation' THEN 6\n    ELSE 7\n  END,\n  sc.count DESC;",
+        "options": {}
+      },
+      "id": "get-dropoff-analysis",
+      "name": "Get Drop-off Analysis",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 100],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Successful scheduling patterns (last 14 days)\nSELECT \n  EXTRACT(DOW FROM scheduled_at) as day_of_week,\n  EXTRACT(HOUR FROM scheduled_at) as hour_of_day,\n  COALESCE(referral_source, 'unknown') as source,\n  COUNT(*) as count\nFROM leads\nWHERE status = 'scheduled' \n  AND scheduled_at >= NOW() - INTERVAL '14 days'\nGROUP BY \n  EXTRACT(DOW FROM scheduled_at),\n  EXTRACT(HOUR FROM scheduled_at),\n  referral_source\nORDER BY count DESC;",
+        "options": {}
+      },
+      "id": "get-scheduling-patterns",
+      "name": "Get Scheduling Patterns",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Source performance comparison (last 14 days)\nSELECT \n  COALESCE(l.referral_source, 'unknown') as source,\n  COUNT(*) as total_leads,\n  COUNT(*) FILTER (WHERE l.status = 'scheduled') as scheduled,\n  COUNT(*) FILTER (WHERE l.status = 'consulted') as consulted,\n  COUNT(*) FILTER (WHERE l.status = 'converted') as converted,\n  ROUND(AVG(EXTRACT(EPOCH FROM (l.scheduled_at - c.first_contact_at))/3600)::numeric, 1) as avg_hours_to_schedule\nFROM leads l\nLEFT JOIN conversation_states c ON l.conversation_id = c.id\nWHERE l.created_at >= NOW() - INTERVAL '14 days'\nGROUP BY l.referral_source\nORDER BY total_leads DESC;",
+        "options": {}
+      },
+      "id": "get-source-comparison",
+      "name": "Get Source Comparison",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Conversion funnel (last 14 days)\nSELECT \n  COUNT(*) as total_conversations,\n  COUNT(*) FILTER (WHERE current_stage != 'greeting') as engaged,\n  COUNT(*) FILTER (WHERE current_stage IN ('qualification', 'value_building', 'scheduling', 'confirmation')) as qualified,\n  COUNT(*) FILTER (WHERE status = 'scheduled' OR status = 'completed') as scheduled,\n  COUNT(*) FILTER (WHERE status = 'awaiting_human') as needed_handoff,\n  COUNT(*) FILTER (WHERE status = 'cold') as went_cold,\n  COUNT(*) FILTER (WHERE status = 'disqualified') as disqualified,\n  ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'scheduled' OR status = 'completed') / NULLIF(COUNT(*), 0), 1) as overall_conversion_rate\nFROM conversation_states\nWHERE first_contact_at >= NOW() - INTERVAL '14 days';",
+        "options": {}
+      },
+      "id": "get-funnel-stats",
+      "name": "Get Funnel Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Handoff reasons analysis (last 14 days)\nSELECT \n  category,\n  reason,\n  COUNT(*) as count,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) as percentage\nFROM handoff_queue\nWHERE created_at >= NOW() - INTERVAL '14 days'\nGROUP BY category, reason\nORDER BY count DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "get-handoff-reasons",
+      "name": "Get Handoff Reasons",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 900],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Response time analysis (last 14 days)\nSELECT \n  DATE(created_at) as date,\n  COUNT(*) as messages,\n  ROUND(AVG(response_time_ms)::numeric, 0) as avg_response_ms,\n  ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 0) as median_response_ms,\n  ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 0) as p95_response_ms,\n  COUNT(*) FILTER (WHERE error_occurred = true) as errors\nFROM message_log\nWHERE created_at >= NOW() - INTERVAL '14 days'\n  AND direction = 'outbound'\nGROUP BY DATE(created_at)\nORDER BY date DESC;",
+        "options": {}
+      },
+      "id": "get-response-times",
+      "name": "Get Response Times",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 1100],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-all-data",
+      "name": "Merge All Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile comprehensive bi-weekly analysis\nconst items = $input.all();\n\n// Extract data from queries\nconst dropoffData = items[0]?.json || [];\nconst schedulingPatterns = items[1]?.json || [];\nconst sourceComparison = items[2]?.json || [];\nconst funnelStats = items[3]?.json || {};\nconst handoffReasons = items[4]?.json || [];\nconst responseTimes = items[5]?.json || [];\n\n// Helper to safely get array or wrap single object\nconst toArray = (data) => Array.isArray(data) ? data : (data && Object.keys(data).length > 0 ? [data] : []);\n\nconst dropoff = toArray(dropoffData);\nconst patterns = toArray(schedulingPatterns);\nconst sources = toArray(sourceComparison);\nconst funnel = Array.isArray(funnelStats) ? funnelStats[0] : funnelStats;\nconst handoffs = toArray(handoffReasons);\nconst response = toArray(responseTimes);\n\n// Date range\nconst endDate = new Date();\nconst startDate = new Date(endDate.getTime() - 14 * 24 * 60 * 60 * 1000);\nconst dateRange = `${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`;\n\n// === FUNNEL ANALYSIS ===\nconst totalConvos = parseInt(funnel.total_conversations) || 0;\nconst engaged = parseInt(funnel.engaged) || 0;\nconst qualified = parseInt(funnel.qualified) || 0;\nconst scheduled = parseInt(funnel.scheduled) || 0;\nconst wentCold = parseInt(funnel.went_cold) || 0;\nconst conversionRate = funnel.overall_conversion_rate || 0;\n\n// Calculate drop-off percentages\nconst engagementRate = totalConvos > 0 ? ((engaged / totalConvos) * 100).toFixed(1) : 0;\nconst qualificationRate = engaged > 0 ? ((qualified / engaged) * 100).toFixed(1) : 0;\nconst schedulingRate = qualified > 0 ? ((scheduled / qualified) * 100).toFixed(1) : 0;\n\n// === DROP-OFF ANALYSIS ===\nlet dropoffInsights = '';\nconst coldByStage = dropoff.filter(d => d.status === 'cold');\nif (coldByStage.length > 0) {\n  const worstStage = coldByStage.reduce((max, d) => parseInt(d.count) > parseInt(max.count) ? d : max, coldByStage[0]);\n  dropoffInsights = `⚠️ Maior ponto de abandono: *${worstStage.current_stage}* (${worstStage.count} conversas, ${worstStage.percentage}%)`;\n} else {\n  dropoffInsights = '✅ Nenhum ponto critico de abandono identificado';\n}\n\n// === SOURCE ANALYSIS ===\nlet sourceAnalysis = '';\nif (sources.length > 0) {\n  sourceAnalysis = sources.map(s => {\n    const schedRate = s.total_leads > 0 ? ((s.scheduled / s.total_leads) * 100).toFixed(1) : 0;\n    const emoji = s.source === 'ads' || s.source === 'meta_ads' ? '📱' : \n                  s.source === 'referral' || s.source === 'indicacao' ? '🤝' : '❓';\n    return `${emoji} *${s.source}*: ${s.total_leads} leads → ${s.scheduled} agendados (${schedRate}%)`;\n  }).join('\\n');\n} else {\n  sourceAnalysis = 'Dados insuficientes';\n}\n\n// Best source\nlet bestSource = 'N/A';\nif (sources.length > 0) {\n  const sourcesWithRate = sources.map(s => ({\n    ...s,\n    rate: s.total_leads > 0 ? (s.scheduled / s.total_leads) : 0\n  }));\n  const best = sourcesWithRate.reduce((max, s) => s.rate > max.rate ? s : max, sourcesWithRate[0]);\n  if (best.rate > 0) {\n    bestSource = `${best.source} (${(best.rate * 100).toFixed(1)}%)`;\n  }\n}\n\n// === SCHEDULING PATTERNS ===\nlet peakTimes = 'Dados insuficientes';\nif (patterns.length > 0) {\n  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];\n  const topPatterns = patterns.slice(0, 3);\n  peakTimes = topPatterns.map(p => {\n    const day = dayNames[parseInt(p.day_of_week)] || 'N/A';\n    const hour = `${String(parseInt(p.hour_of_day)).padStart(2, '0')}h`;\n    return `${day} ${hour} (${p.count} agendamentos)`;\n  }).join(', ');\n}\n\n// === HANDOFF INSIGHTS ===\nlet handoffInsights = '';\nif (handoffs.length > 0) {\n  const topReasons = handoffs.slice(0, 3);\n  handoffInsights = topReasons.map(h => `• ${h.category}: ${h.count} (${h.percentage}%)`).join('\\n');\n} else {\n  handoffInsights = 'Nenhum handoff no periodo';\n}\n\n// === RESPONSE TIME ANALYSIS ===\nlet avgResponseTime = 0;\nlet responseTimeStatus = '✅';\nif (response.length > 0) {\n  const totalAvg = response.reduce((sum, r) => sum + (parseInt(r.avg_response_ms) || 0), 0) / response.length;\n  avgResponseTime = Math.round(totalAvg);\n  if (avgResponseTime > 5000) {\n    responseTimeStatus = '⚠️ Acima do ideal (>5s)';\n  } else if (avgResponseTime > 10000) {\n    responseTimeStatus = '🔴 Critico (>10s)';\n  } else {\n    responseTimeStatus = '✅ Otimo (<5s)';\n  }\n}\n\n// === RECOMMENDATIONS ===\nlet recommendations = [];\n\n// Based on drop-off analysis\nif (coldByStage.length > 0) {\n  const worstStage = coldByStage.reduce((max, d) => parseInt(d.count) > parseInt(max.count) ? d : max, coldByStage[0]);\n  if (worstStage.current_stage === 'greeting') {\n    recommendations.push('💡 Melhorar mensagem inicial - muitos abandonam logo no comeco');\n  } else if (worstStage.current_stage === 'qualification') {\n    recommendations.push('💡 Revisar perguntas de qualificacao - podem estar muito invasivas');\n  } else if (worstStage.current_stage === 'value_building') {\n    recommendations.push('💡 Reforcar proposta de valor antes de pedir agendamento');\n  }\n}\n\n// Based on source analysis\nif (sources.length >= 2) {\n  const sourcesWithRate = sources.map(s => ({\n    ...s,\n    rate: s.total_leads > 0 ? (s.scheduled / s.total_leads) : 0\n  }));\n  const adsSource = sourcesWithRate.find(s => s.source === 'ads' || s.source === 'meta_ads');\n  const referralSource = sourcesWithRate.find(s => s.source === 'referral' || s.source === 'indicacao');\n  if (adsSource && referralSource && referralSource.rate > adsSource.rate * 1.5) {\n    recommendations.push('💡 Indicacoes convertem melhor - considere programa de referral');\n  }\n}\n\n// Based on conversion rate\nif (conversionRate < 20) {\n  recommendations.push('💡 Taxa de conversao abaixo de 20% - revisar todo o funil');\n} else if (conversionRate > 40) {\n  recommendations.push('🎉 Excelente taxa de conversao! Manter estrategia atual');\n}\n\n// Based on response time\nif (avgResponseTime > 5000) {\n  recommendations.push('💡 Tempo de resposta alto - verificar performance do servidor');\n}\n\nconst recommendationsText = recommendations.length > 0 ? recommendations.join('\\n') : '✅ Nenhuma recomendacao urgente - sistema funcionando bem!';\n\n// === BUILD TELEGRAM MESSAGE ===\nconst telegramMessage = `📈 *ANALISE BI-SEMANAL*\n_Periodo: ${dateRange}_\n\n═══════════════════════════\n\n🎯 *FUNIL DE CONVERSAO*\n\n📊 Conversas iniciadas: ${totalConvos}\n   ↓ ${engagementRate}% engajaram\n💬 Engajados: ${engaged}\n   ↓ ${qualificationRate}% qualificaram\n✅ Qualificados: ${qualified}\n   ↓ ${schedulingRate}% agendaram\n📅 Agendados: ${scheduled}\n\n*Taxa geral: ${conversionRate}%*\n\n═══════════════════════════\n\n📉 *ANALISE DE DROP-OFF*\n\n${dropoffInsights}\n\n❄️ Total que esfriaram: ${wentCold}\n\n═══════════════════════════\n\n🔍 *PERFORMANCE POR ORIGEM*\n\n${sourceAnalysis}\n\n🏆 Melhor fonte: ${bestSource}\n\n═══════════════════════════\n\n⏰ *MELHORES HORARIOS*\n\n${peakTimes}\n\n═══════════════════════════\n\n🤝 *PRINCIPAIS MOTIVOS DE HANDOFF*\n\n${handoffInsights}\n\n═══════════════════════════\n\n⚡ *TEMPO DE RESPOSTA*\n\nMedia: ${avgResponseTime}ms\nStatus: ${responseTimeStatus}\n\n═══════════════════════════\n\n💡 *RECOMENDACOES*\n\n${recommendationsText}\n\n═══════════════════════════\n\n🤖 _Relatorio gerado automaticamente_\n_Proximo relatorio: ${new Date(endDate.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}_`;\n\nreturn [{\n  json: {\n    telegramMessage,\n    summary: {\n      period: dateRange,\n      totalConversations: totalConvos,\n      conversionRate,\n      scheduled,\n      recommendations\n    }\n  }\n}];"
+      },
+      "id": "compile-analysis",
+      "name": "Compile Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.telegramMessage }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-telegram-analysis",
+      "name": "Send Analysis Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "analytics_reports",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "report_type",
+              "fieldValue": "biweekly_analysis"
+            },
+            {
+              "fieldId": "report_data",
+              "fieldValue": "={{ JSON.stringify($json.summary) }}"
+            },
+            {
+              "fieldId": "generated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-report",
+      "name": "Save Report to DB",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1300, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 Weeks (1st & 15th)": {
+      "main": [
+        [
+          {
+            "node": "Get Drop-off Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Scheduling Patterns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Source Comparison",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Funnel Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Handoff Reasons",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Response Times",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Drop-off Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Scheduling Patterns": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Source Comparison": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Funnel Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Handoff Reasons": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Response Times": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Data": {
+      "main": [
+        [
+          {
+            "node": "Compile Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Analysis": {
+      "main": [
+        [
+          {
+            "node": "Send Analysis Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Report to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "clinic-whatsapp-bot",
+    "notes": "Runs bi-weekly on the 1st and 15th of each month at 10 AM. Provides comprehensive analysis including: conversion funnel breakdown, drop-off points identification, source performance comparison (ads vs referral), best scheduling times, handoff reasons analysis, response time metrics, and AI-generated recommendations for improvement."
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "analytics",
+      "id": "8"
+    },
+    {
+      "name": "scheduled",
+      "id": "9"
+    },
+    {
+      "name": "production",
+      "id": "2"
+    }
+  ]
+}

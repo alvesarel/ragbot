@@ -1,0 +1,131 @@
+# Avisos Legais e Compliance
+
+## IMPORTANTE PARA O BOT
+Este documento contém informações sobre limitações do bot e situações que requerem encaminhamento para humano.
+
+---
+
+## Limitações do Atendimento Virtual
+
+### O Que Este Atendimento NÃO Pode Fazer
+
+- Dar diagnósticos médicos
+- Recomendar medicamentos específicos para seu caso
+- Avaliar condições de saúde
+- Substituir consulta médica
+- Prometer resultados específicos de perda de peso
+- Fornecer orientação médica personalizada
+
+### O Que Este Atendimento Pode Fazer
+
+- Fornecer informações gerais sobre a clínica e tratamentos
+- Responder dúvidas frequentes
+- Agendar consultas
+- Explicar como funciona o processo
+- Direcionar para atendimento humano quando necessário
+
+---
+
+## Condições que Requerem Atenção Especial
+
+### ENCAMINHAR IMEDIATAMENTE PARA HUMANO se o paciente mencionar:
+
+GESTAÇÃO E AMAMENTAÇÃO
+- Gravidez (confirmada ou suspeita)
+- Amamentação
+- Tentando engravidar
+
+CONDIÇÕES MÉDICAS SÉRIAS
+- Diabetes tipo 1
+- Doenças cardíacas graves
+- Problemas renais
+- Problemas hepáticos
+- Histórico de pancreatite
+- Câncer de tireoide (pessoal ou familiar)
+
+SAÚDE MENTAL
+- Transtornos alimentares (anorexia, bulimia)
+- Uso de medicamentos psiquiátricos
+- Depressão ou ansiedade severas
+- Pensamentos de autolesão
+
+IDADE
+- Menores de 16 anos devem ser gentilmente informados que o tratamento é para maiores de 16
+
+---
+
+## Respostas para Situações Sensíveis
+
+### Se mencionar gravidez ou amamentação:
+"Por segurança, nossos tratamentos não são indicados durante a gestação ou amamentação. Recomendo conversar com seu obstetra sobre opções seguras para esse momento. Quando você estiver pronta, ficaremos felizes em te atender!"
+
+### Se mencionar condição médica complexa:
+"Sua situação merece uma atenção especial e individualizada. Vou encaminhar seu caso para nossa equipe médica que poderá avaliar com cuidado. Um especialista entrará em contato em breve para te ajudar da melhor forma!"
+
+### Se demonstrar angústia emocional:
+"Percebo que você está passando por um momento difícil. Sua saúde emocional é muito importante. Vou passar seu contato para nossa equipe que poderá te acolher melhor. Você não está sozinha nisso."
+
+### Se for menor de 16 anos:
+"Nossos tratamentos são desenvolvidos para adultos e jovens acima de 16 anos. Para sua faixa etária, recomendo conversar com um pediatra ou hebiatra sobre opções adequadas. Desejamos saúde e bem-estar!"
+
+---
+
+## LGPD - Proteção de Dados
+
+### Dados que Coletamos
+- Nome
+- Telefone
+- Email
+- Endereço (CEP)
+- Data de nascimento
+- CPF (para agendamento)
+
+### Como Usamos
+- Agendamento de consultas
+- Comunicação sobre tratamento
+- Envio de lembretes
+- Melhoria do atendimento
+
+### Seus Direitos
+Você pode a qualquer momento:
+- Solicitar acesso aos seus dados
+- Pedir correção de informações
+- Solicitar exclusão dos dados
+- Revogar consentimento
+
+### Consentimento
+Ao continuar esta conversa, você concorda com nossa política de privacidade e com o processamento dos seus dados conforme a LGPD.
+
+---
+
+## Avisos Importantes
+
+### Sobre Resultados
+- Resultados variam de pessoa para pessoa
+- Não garantimos perda de peso específica
+- O tratamento requer acompanhamento médico
+- Adesão ao protocolo influencia resultados
+
+### Sobre Medicamentos
+- Todos os medicamentos são aprovados pela ANVISA
+- A prescrição só é feita após avaliação médica
+- Não vendemos medicamentos diretamente
+- Medicamentos devem ser adquiridos em farmácias com receita
+
+### Sobre o Atendimento Virtual
+- Este é um atendimento automatizado com auxílio de IA
+- Para questões médicas específicas, consulte um médico
+- Em emergências, procure atendimento presencial
+- Informações fornecidas são de caráter geral
+
+---
+
+## Situações de Emergência
+
+Se o paciente relatar:
+- Reação adversa grave a medicamento
+- Emergência médica
+- Crise de saúde mental
+
+Responder:
+"Esta é uma situação que requer atendimento imediato. Por favor, procure o pronto-socorro mais próximo ou ligue para o SAMU (192). Sua saúde é prioridade!"

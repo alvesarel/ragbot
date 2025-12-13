@@ -1,0 +1,328 @@
+{
+  "name": "Daily Performance Report (Telegram)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * *"
+            }
+          ]
+        }
+      },
+      "id": "daily-trigger",
+      "name": "Daily at 8 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Daily conversations summary\nSELECT \n  COUNT(*) as total_conversations,\n  COUNT(*) FILTER (WHERE DATE(first_contact_at) = CURRENT_DATE) as new_today,\n  COUNT(*) FILTER (WHERE status = 'active') as active,\n  COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled_total,\n  COUNT(*) FILTER (WHERE status = 'scheduled' AND DATE(updated_at) = CURRENT_DATE) as scheduled_today,\n  COUNT(*) FILTER (WHERE status = 'awaiting_human') as awaiting_human,\n  COUNT(*) FILTER (WHERE status = 'cold') as cold,\n  COUNT(*) FILTER (WHERE status = 'disqualified') as disqualified\nFROM conversation_states;",
+        "options": {}
+      },
+      "id": "get-conversation-stats",
+      "name": "Get Conversation Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Today's leads by source\nSELECT \n  COALESCE(referral_source, 'unknown') as source,\n  COUNT(*) as count\nFROM leads\nWHERE DATE(created_at) = CURRENT_DATE\nGROUP BY referral_source\nORDER BY count DESC;",
+        "options": {}
+      },
+      "id": "get-source-stats",
+      "name": "Get Source Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Today's message metrics\nSELECT \n  COUNT(*) as total_messages,\n  COUNT(*) FILTER (WHERE direction = 'inbound') as inbound,\n  COUNT(*) FILTER (WHERE direction = 'outbound') as outbound,\n  ROUND(AVG(response_time_ms)::numeric, 0) as avg_response_ms,\n  COUNT(*) FILTER (WHERE error_occurred = true) as errors\nFROM message_log\nWHERE DATE(created_at) = CURRENT_DATE;",
+        "options": {}
+      },
+      "id": "get-message-stats",
+      "name": "Get Message Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Today's scheduled appointments\nSELECT \n  name,\n  phone_number,\n  COALESCE(referral_source, 'unknown') as source,\n  appointment_date\nFROM leads\nWHERE DATE(scheduled_at) = CURRENT_DATE\n  AND status = 'scheduled'\nORDER BY scheduled_at DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "get-todays-bookings",
+      "name": "Get Today's Bookings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 800],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Handoffs today\nSELECT \n  category,\n  COUNT(*) as count,\n  COUNT(*) FILTER (WHERE status = 'resolved') as resolved\nFROM handoff_queue\nWHERE DATE(created_at) = CURRENT_DATE\nGROUP BY category;",
+        "options": {}
+      },
+      "id": "get-handoff-stats",
+      "name": "Get Handoff Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 1000],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-stats",
+      "name": "Merge All Stats",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile all stats into a Telegram message\nconst items = $input.all();\n\n// Get individual stat results\nconst convStats = items[0]?.json || {};\nconst sourceStats = items[1]?.json ? [items[1].json] : [];\nconst messageStats = items[2]?.json || {};\nconst todaysBookings = items[3]?.json ? [items[3].json] : [];\nconst handoffStats = items[4]?.json ? [items[4].json] : [];\n\n// Parse conversation stats (first query returns single row)\nconst conv = Array.isArray(convStats) ? convStats[0] : convStats;\n\n// Calculate conversion rate\nconst newToday = parseInt(conv.new_today) || 0;\nconst scheduledToday = parseInt(conv.scheduled_today) || 0;\nconst conversionRate = newToday > 0 ? ((scheduledToday / newToday) * 100).toFixed(1) : '0';\n\n// Format source breakdown\nlet sourceBreakdown = '';\nconst sources = Array.isArray(sourceStats) && sourceStats.length > 0 && sourceStats[0] ? sourceStats : [];\nif (sources.length > 0) {\n  sourceBreakdown = sources.map(s => {\n    const emoji = s.source === 'ads' || s.source === 'meta_ads' ? '📱' : \n                  s.source === 'referral' || s.source === 'indicacao' ? '🤝' : \n                  s.source === 'organic' ? '🌱' : '❓';\n    return `   ${emoji} ${s.source}: ${s.count}`;\n  }).join('\\n');\n} else {\n  sourceBreakdown = '   Nenhum lead hoje';\n}\n\n// Format today's bookings list\nlet bookingsList = '';\nconst bookings = Array.isArray(todaysBookings) && todaysBookings.length > 0 && todaysBookings[0] ? todaysBookings : [];\nif (bookings.length > 0 && bookings[0].name) {\n  bookingsList = bookings.slice(0, 5).map(b => {\n    const sourceEmoji = b.source === 'ads' ? '📱' : b.source === 'referral' ? '🤝' : '❓';\n    return `   • ${b.name} ${sourceEmoji}`;\n  }).join('\\n');\n} else {\n  bookingsList = '   Nenhum agendamento hoje';\n}\n\n// Format handoff summary\nlet handoffSummary = '';\nconst handoffs = Array.isArray(handoffStats) && handoffStats.length > 0 && handoffStats[0] ? handoffStats : [];\nif (handoffs.length > 0 && handoffs[0].category) {\n  handoffSummary = handoffs.map(h => {\n    return `   • ${h.category}: ${h.count} (${h.resolved} resolvidos)`;\n  }).join('\\n');\n} else {\n  handoffSummary = '   Nenhum handoff hoje ✨';\n}\n\n// Parse message stats\nconst msg = Array.isArray(messageStats) ? messageStats[0] : messageStats;\nconst totalMessages = parseInt(msg.total_messages) || 0;\nconst avgResponse = parseInt(msg.avg_response_ms) || 0;\nconst errors = parseInt(msg.errors) || 0;\n\n// Build date string\nconst today = new Date();\nconst dateStr = today.toLocaleDateString('pt-BR', { \n  weekday: 'long', \n  day: 'numeric', \n  month: 'long', \n  year: 'numeric' \n});\n\n// Build the Telegram message\nconst telegramMessage = `📊 *RELATORIO DIARIO*\n_${dateStr}_\n\n━━━━━━━━━━━━━━━━━━━━━\n\n📈 *CONVERSAS*\n   🆕 Novas hoje: ${newToday}\n   💬 Ativas: ${conv.active || 0}\n   📅 Agendadas hoje: ${scheduledToday}\n   🚨 Aguardando humano: ${conv.awaiting_human || 0}\n   ❄️ Esfriaram: ${conv.cold || 0}\n\n🎯 *TAXA DE CONVERSAO*\n   ${conversionRate}% (${scheduledToday}/${newToday} conversas)\n\n━━━━━━━━━━━━━━━━━━━━━\n\n🔍 *ORIGEM DOS LEADS HOJE*\n${sourceBreakdown}\n\n━━━━━━━━━━━━━━━━━━━━━\n\n📅 *AGENDAMENTOS DE HOJE*\n${bookingsList}\n\n━━━━━━━━━━━━━━━━━━━━━\n\n🤝 *HANDOFFS HOJE*\n${handoffSummary}\n\n━━━━━━━━━━━━━━━━━━━━━\n\n💬 *MENSAGENS*\n   Total: ${totalMessages}\n   Tempo medio resposta: ${avgResponse}ms\n   ${errors > 0 ? `⚠️ Erros: ${errors}` : '✅ Sem erros'}\n\n━━━━━━━━━━━━━━━━━━━━━\n\n🤖 _Relatorio gerado automaticamente por Sofia_`;\n\nreturn [{\n  json: {\n    telegramMessage,\n    stats: {\n      newConversations: newToday,\n      scheduledToday,\n      conversionRate,\n      totalMessages,\n      errors\n    }\n  }\n}];"
+      },
+      "id": "compile-report",
+      "name": "Compile Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.telegramMessage }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-telegram-report",
+      "name": "Send Daily Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "message_log",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "system_report"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "=Daily report sent via Telegram"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-report",
+      "name": "Log Report Sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1300, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily at 8 PM": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Source Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Message Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Today's Bookings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Handoff Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Stats",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Message Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Bookings": {
+      "main": [
+        [
+          {
+            "node": "Merge All Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Handoff Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Stats": {
+      "main": [
+        [
+          {
+            "node": "Compile Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Report": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Report Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "clinic-whatsapp-bot",
+    "notes": "Runs daily at 8 PM (Sao Paulo time). Sends a comprehensive performance summary to Telegram including: new conversations, conversion rate, lead sources breakdown (ads vs referral), today's bookings, handoffs, and message metrics."
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "analytics",
+      "id": "8"
+    },
+    {
+      "name": "scheduled",
+      "id": "9"
+    },
+    {
+      "name": "production",
+      "id": "2"
+    }
+  ]
+}

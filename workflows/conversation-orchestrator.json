@@ -1,0 +1,628 @@
+{
+  "name": "Conversation Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "tableId": "conversation_states",
+        "filterType": "string",
+        "filterString": "=phone_number=eq.{{ $json.messageData.from }}",
+        "returnAll": false,
+        "limit": 1,
+        "options": {}
+      },
+      "id": "load-state",
+      "name": "Load Conversation State",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine conversation stage and context\nconst inputData = $('Execute Workflow Trigger').first().json;\nconst stateResult = $input.all();\nconst hasState = stateResult.length > 0 && stateResult[0].json.id;\n\nlet state = hasState ? stateResult[0].json : null;\n\nconst conversationStage = state?.current_stage || 'greeting';\nconst collectedData = state?.collected_data || {};\nconst messageHistory = state?.message_history || [];\nconst language = state?.language || 'pt';\nconst consentGiven = !!state?.consent_given_at;\n\n// Required fields for qualification\nconst requiredFields = ['name', 'email', 'cep', 'date_of_birth', 'cpf', 'referral_source'];\nconst missingFields = requiredFields.filter(f => !collectedData[f]);\n\n// Check age if DOB is collected\nlet ageValid = true;\nlet calculatedAge = null;\nif (collectedData.date_of_birth) {\n  const dob = new Date(collectedData.date_of_birth);\n  const today = new Date();\n  calculatedAge = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000));\n  ageValid = calculatedAge >= 16;\n}\n\n// Get last 10 messages for context\nconst recentHistory = messageHistory.slice(-10);\n\n// Add current message to history\nconst newMessage = {\n  role: 'user',\n  content: inputData.processedText,\n  type: inputData.originalType,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    conversationId: state?.id || null,\n    isNewConversation: !hasState,\n    phoneNumber: inputData.messageData.from,\n    contactName: inputData.messageData.contactName,\n    stage: conversationStage,\n    collectedData,\n    missingFields,\n    ageValid,\n    calculatedAge,\n    consentGiven,\n    language,\n    messageHistory: recentHistory,\n    currentMessage: newMessage,\n    inputMessage: inputData.processedText,\n    messageType: inputData.originalType,\n    imageUrl: inputData.imageUrl || null,\n    rawMessageData: inputData.messageData\n  }\n}];"
+      },
+      "id": "prepare-context",
+      "name": "Prepare Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.inputMessage }}\"\n}",
+        "options": {}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-key",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.QDRANT_URL }}/collections/{{ $env.QDRANT_COLLECTION_NAME }}/points/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"vector\": {{ JSON.stringify($json.data[0].embedding) }},\n  \"limit\": 5,\n  \"with_payload\": true,\n  \"filter\": {\n    \"should\": [\n      { \"key\": \"language\", \"match\": { \"value\": \"{{ $('Prepare Context').item.json.language }}\" }},\n      { \"key\": \"language\", \"match\": { \"value\": \"both\" }}\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "qdrant-search",
+      "name": "Search Qdrant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qdrant-key",
+          "name": "Qdrant API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build RAG context from search results\nconst searchResults = $input.first().json.result || [];\nconst context = $('Prepare Context').first().json;\n\n// Extract relevant chunks\nconst ragChunks = searchResults.map(r => ({\n  content: r.payload?.content || '',\n  category: r.payload?.category || 'unknown',\n  score: r.score\n})).filter(c => c.score > 0.7); // Only high relevance\n\nconst ragContext = ragChunks.map(c => c.content).join('\\n\\n---\\n\\n');\n\nreturn [{\n  json: {\n    ...context,\n    ragContext,\n    ragChunksUsed: ragChunks.length\n  }\n}];"
+      },
+      "id": "build-rag-context",
+      "name": "Build RAG Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Claude prompt\nconst context = $input.first().json;\nconst systemPrompt = $env.SOFIA_SYSTEM_PROMPT; // Load from env or file\n\n// Build conversation history for Claude\nconst historyMessages = context.messageHistory.map(m => ({\n  role: m.role === 'user' ? 'user' : 'assistant',\n  content: m.content\n}));\n\n// Add current message\nhistoryMessages.push({\n  role: 'user',\n  content: context.inputMessage\n});\n\n// Build context injection\nconst contextInjection = `\n## CONTEXTO ATUAL DA CONVERSA\n\n**Telefone:** ${context.phoneNumber}\n**Nome do Contato:** ${context.contactName || 'Nao informado'}\n**Estagio Atual:** ${context.stage}\n**Idioma Detectado:** ${context.language}\n**Consentimento LGPD:** ${context.consentGiven ? 'Sim' : 'Nao'}\n**Nova Conversa:** ${context.isNewConversation ? 'Sim' : 'Nao'}\n\n**Dados Ja Coletados:**\n${JSON.stringify(context.collectedData, null, 2)}\n\n**Campos Faltando:**\n${context.missingFields.length > 0 ? context.missingFields.join(', ') : 'Nenhum - Lead qualificado!'}\n\n**Validacao de Idade:**\n${context.calculatedAge !== null ? `Idade: ${context.calculatedAge} anos - ${context.ageValid ? 'VALIDO' : 'MENOR DE 16 - DESQUALIFICAR'}` : 'Nao informada ainda'}\n\n---\n\n## CONTEXTO DA BASE DE CONHECIMENTO (RAG)\n\n${context.ragContext || 'Nenhum contexto relevante encontrado.'}\n\n---\n\nResponda ao usuario seguindo as diretrizes do sistema.\n`;\n\nconst fullSystemPrompt = systemPrompt + '\\n\\n' + contextInjection;\n\nreturn [{\n  json: {\n    ...context,\n    claudeMessages: historyMessages,\n    systemPrompt: fullSystemPrompt\n  }\n}];"
+      },
+      "id": "build-claude-prompt",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1024,\n  \"system\": {{ JSON.stringify($json.systemPrompt) }},\n  \"messages\": {{ JSON.stringify($json.claudeMessages) }}\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "claude-api",
+      "name": "Claude API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-key",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude response and extract actions\nconst response = $input.first().json;\nconst context = $('Build Claude Prompt').first().json;\n\nlet responseText = response.content?.[0]?.text || '';\nlet parsed;\n\n// Try to parse as JSON (structured response)\ntry {\n  // Find JSON in response\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  } else {\n    // Plain text response\n    parsed = {\n      message: responseText,\n      extracted_data: {},\n      new_stage: context.stage,\n      actions: ['await_response'],\n      requires_handoff: false,\n      handoff_reason: null,\n      handoff_category: null,\n      sentiment: 'neutral',\n      language: context.language\n    };\n  }\n} catch (e) {\n  // Fallback for unparseable response\n  parsed = {\n    message: responseText,\n    extracted_data: {},\n    new_stage: context.stage,\n    actions: ['await_response'],\n    requires_handoff: false,\n    handoff_reason: null,\n    handoff_category: null,\n    sentiment: 'neutral',\n    language: context.language\n  };\n}\n\n// Merge extracted data with existing\nconst updatedCollectedData = {\n  ...context.collectedData,\n  ...parsed.extracted_data\n};\n\n// Update message history\nconst updatedHistory = [\n  ...context.messageHistory,\n  context.currentMessage,\n  {\n    role: 'assistant',\n    content: parsed.message,\n    timestamp: new Date().toISOString()\n  }\n];\n\nreturn [{\n  json: {\n    responseMessage: parsed.message,\n    extractedData: parsed.extracted_data || {},\n    updatedCollectedData,\n    newStage: parsed.new_stage || context.stage,\n    actions: parsed.actions || ['await_response'],\n    requiresHandoff: parsed.requires_handoff || false,\n    handoffReason: parsed.handoff_reason,\n    handoffCategory: parsed.handoff_category,\n    sentiment: parsed.sentiment || 'neutral',\n    language: parsed.language || context.language,\n    \n    // Pass through context\n    conversationId: context.conversationId,\n    isNewConversation: context.isNewConversation,\n    phoneNumber: context.phoneNumber,\n    contactName: context.contactName,\n    updatedHistory,\n    ragChunksUsed: context.ragChunksUsed,\n    \n    // For analytics\n    tokensUsed: response.usage?.input_tokens + response.usage?.output_tokens,\n    inputTokens: response.usage?.input_tokens,\n    outputTokens: response.usage?.output_tokens\n  }\n}];"
+      },
+      "id": "parse-response",
+      "name": "Parse Response & Actions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.requiresHandoff }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "handoff"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.actions.includes('schedule_appointment') }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.actions.includes('disqualify_under_16') }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "disqualify"
+            }
+          ],
+          "fallbackOutput": {
+            "renameOutput": true,
+            "outputKey": "continue"
+          }
+        },
+        "options": {}
+      },
+      "id": "route-actions",
+      "name": "Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.HANDOFF_WORKFLOW_ID }}",
+        "options": {}
+      },
+      "id": "call-handoff",
+      "name": "Call Human Handoff",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [2300, 100]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.BOOKING_WORKFLOW_ID }}",
+        "options": {}
+      },
+      "id": "call-booking",
+      "name": "Call Calendar Booking",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [2300, 250]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-disqualify-status",
+              "name": "status",
+              "value": "disqualified",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-disqualified",
+      "name": "Set Disqualified",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2300, 400]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "conversation_states",
+        "conflictType": "column",
+        "conflictColumn": "phone_number",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "update-state",
+      "name": "Update Conversation State",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2550, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare state for upsert\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    phone_number: data.phoneNumber,\n    contact_name: data.contactName,\n    current_stage: data.newStage,\n    status: data.status || 'active',\n    collected_data: data.updatedCollectedData,\n    message_history: data.updatedHistory,\n    language: data.language,\n    sentiment_score: data.sentiment,\n    total_messages: (data.updatedHistory?.length || 0),\n    last_message_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "prepare-state-update",
+      "name": "Prepare State Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2550, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "message_log",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "conversation_id",
+              "fieldValue": "={{ $('Parse Response & Actions').item.json.conversationId }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Parse Response & Actions').item.json.responseMessage }}"
+            },
+            {
+              "fieldId": "tokens_used",
+              "fieldValue": "={{ $('Parse Response & Actions').item.json.tokensUsed }}"
+            },
+            {
+              "fieldId": "rag_chunks_used",
+              "fieldValue": "={{ $('Parse Response & Actions').item.json.ragChunksUsed }}"
+            },
+            {
+              "fieldId": "stage_at_time",
+              "fieldValue": "={{ $('Parse Response & Actions').item.json.newStage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-message",
+      "name": "Log Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2750, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parse Response & Actions').item.json.phoneNumber }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": {{ JSON.stringify($('Parse Response & Actions').item.json.responseMessage) }}\n  }\n}",
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Send WhatsApp Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2950, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "whatsapp-token",
+          "name": "WhatsApp Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "joinMode": "keepNonMatches",
+        "outputDataFrom": "both",
+        "options": {}
+      },
+      "id": "merge-paths",
+      "name": "Merge All Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2550, 150]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Conversation State": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Search Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Build RAG Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build RAG Context": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude API Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API Call": {
+      "main": [
+        [
+          {
+            "node": "Parse Response & Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response & Actions": {
+      "main": [
+        [
+          {
+            "node": "Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Action": {
+      "main": [
+        [
+          {
+            "node": "Call Human Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Calendar Booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Disqualified",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare State Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Human Handoff": {
+      "main": [
+        [
+          {
+            "node": "Prepare State Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Calendar Booking": {
+      "main": [
+        [
+          {
+            "node": "Prepare State Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Disqualified": {
+      "main": [
+        [
+          {
+            "node": "Prepare State Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare State Update": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Conversation State": {
+      "main": [
+        [
+          {
+            "node": "Log Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "clinic-whatsapp-bot"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "core",
+      "id": "3"
+    },
+    {
+      "name": "production",
+      "id": "2"
+    }
+  ]
+}

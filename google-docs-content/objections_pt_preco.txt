@@ -1,0 +1,90 @@
+# Tratamento de Objeções de Preço
+
+## IMPORTANTE PARA O BOT
+Este documento contém orientações sobre como responder a objeções relacionadas a preço. O bot deve usar essas informações para gerar respostas naturais e empáticas.
+
+---
+
+## Princípios Gerais
+
+1. NUNCA mencionar valores específicos de TRATAMENTO
+2. Preço da CONSULTA (R$700) pode ser mencionado, mas sempre com contexto de valor
+3. Focar no VALOR antes de falar de investimento
+4. Ser empático - preço é uma preocupação legítima
+5. Nunca pressionar ou ser agressivo
+
+---
+
+## Objeções Comuns e Como Responder
+
+### "Quanto custa o tratamento?"
+
+O investimento no tratamento varia conforme o protocolo recomendado para cada caso - não existe fórmula única. Na consulta, o médico avalia seu histórico e objetivos para criar um programa 100% personalizado, e aí discutimos o investimento de forma transparente.
+
+Muitos pacientes nos contam que o investimento se paga em qualidade de vida. Quando você pensa em tudo que já gastou com dietas que não funcionaram, produtos milagrosos, roupas que não servem mais... o tratamento que realmente funciona acaba sendo o melhor investimento.
+
+Quer que eu verifique os horários disponíveis para sua avaliação?
+
+### "É muito caro" / "Está fora do meu orçamento"
+
+Entendo completamente sua preocupação. É uma decisão importante e o investimento precisa fazer sentido para você.
+
+O que muitos pacientes descobriram é que o acompanhamento médico próximo, os retornos inclusos, e o suporte contínuo fazem toda diferença nos resultados. Diferente de outras tentativas onde você gasta e não tem retorno, aqui o investimento vem com acompanhamento de verdade.
+
+Temos também algumas opções de parcelamento que podem ajudar a viabilizar. Que tal conhecer melhor o programa na consulta? Assim você pode avaliar se faz sentido para o seu momento.
+
+### "Vou pensar" / "Preciso analisar"
+
+Claro, é uma decisão importante mesmo! Faz todo sentido querer pensar com calma.
+
+Só para eu entender melhor: o que mais te ajudaria a decidir? Posso compartilhar mais sobre nossa metodologia, sobre como funciona o acompanhamento, ou esclarecer alguma dúvida específica?
+
+Às vezes uma conversa ajuda a clarear as ideias. Estou aqui para ajudar no que precisar.
+
+### "Não tenho dinheiro agora"
+
+Entendo! Nem sempre o momento é ideal financeiramente.
+
+Temos opções de parcelamento que podem ajudar a encaixar no orçamento. E lembre-se: a consulta inicial é R$700, e já inclui o retorno em 30 dias. É um primeiro passo mais acessível para você conhecer o programa e ver se faz sentido.
+
+O mais importante é não deixar sua saúde para depois. Que tal pelo menos fazer a avaliação para entender suas opções?
+
+### "Vi mais barato em outro lugar"
+
+Fico feliz que você esteja pesquisando! É importante encontrar a opção certa.
+
+O que diferencia nosso atendimento é o acompanhamento próximo e personalizado. Muitos pacientes que vieram de outros lugares nos contam que a diferença no acompanhamento foi decisiva para finalmente terem resultados.
+
+Aqui não é só prescrever e tchau. Os retornos estão inclusos, você tem suporte da equipe entre consultas, e o médico realmente acompanha sua evolução. Às vezes o "mais barato" sai mais caro quando não funciona, né?
+
+### "Meu amigo/parente fez em outro lugar por menos"
+
+Cada clínica tem sua proposta. O que oferecemos é um acompanhamento diferenciado, com médicos especializados exclusivamente em emagrecimento.
+
+O mais importante é você encontrar um tratamento que funcione para você. Se quiser conhecer nossa metodologia, fico feliz em agendar uma consulta. Aí você pode comparar e decidir o que faz mais sentido.
+
+---
+
+## Reforço de Valor - Use Quando Apropriado
+
+Pontos para destacar sobre o valor do tratamento:
+
+- Médicos especializados EXCLUSIVAMENTE em emagrecimento
+- Acompanhamento próximo (não é só prescrever e tchau)
+- Retornos inclusos no tratamento
+- Suporte via WhatsApp entre consultas
+- Protocolo 100% personalizado
+- Medicamentos de última geração (GLP-1)
+- Resultados sustentáveis (não é dieta da moda)
+- Consulta inicial com retorno em 30 dias incluso
+
+---
+
+## Quando Escalar para Humano
+
+Passe para atendimento humano se:
+- Paciente insistir muito em saber preços específicos do tratamento
+- Paciente propor negociação ou desconto especial
+- Paciente mencionar parceria ou grupo
+- Paciente demonstrar frustração repetida com a política de preços
+- Paciente pedir para falar com responsável sobre valores

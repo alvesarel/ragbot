@@ -1,0 +1,332 @@
+{
+  "name": "Human Handoff",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "tableId": "conversation_states",
+        "filterType": "string",
+        "filterString": "=phone_number=eq.{{ $json.phoneNumber }}",
+        "returnAll": false,
+        "limit": 1,
+        "options": {}
+      },
+      "id": "get-full-context",
+      "name": "Get Full Context",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format handoff package for human review\nconst inputData = $('Execute Workflow Trigger').first().json;\nconst context = $input.first().json;\n\nconst categoryEmojis = {\n  medical: '🏥',\n  negotiation: '💼',\n  complaint: '😤',\n  request: '🙋',\n  frustration: '😰',\n  other: '❓'\n};\n\nconst priorityEmojis = {\n  urgent: '🚨',\n  high: '🔴',\n  normal: '🟡',\n  low: '🟢'\n};\n\n// Determine priority based on category and sentiment\nlet priority = 'normal';\nif (inputData.handoffCategory === 'medical' || inputData.sentiment === 'negative') {\n  priority = 'high';\n}\nif (inputData.handoffCategory === 'complaint' || \n    (inputData.handoffCategory === 'frustration' && inputData.sentiment === 'negative')) {\n  priority = 'urgent';\n}\n\nconst categoryEmoji = categoryEmojis[inputData.handoffCategory] || '❓';\nconst priorityEmoji = priorityEmojis[priority];\n\n// Format last 5 messages\nconst messageHistory = context.message_history || [];\nconst lastMessages = messageHistory.slice(-5).map(m => {\n  const role = m.role === 'user' ? '👤' : '🤖';\n  return `${role} ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`;\n}).join('\\n\\n');\n\n// Format collected data\nconst collectedData = context.collected_data || {};\nconst dataFormatted = Object.entries(collectedData)\n  .map(([key, value]) => `• ${key}: ${value}`)\n  .join('\\n') || 'Nenhum dado coletado';\n\nconst summary = `\n${priorityEmoji} *HANDOFF ${priority.toUpperCase()}* ${categoryEmoji}\n\n*Categoria:* ${inputData.handoffCategory || 'Nao especificada'}\n*Motivo:* ${inputData.handoffReason || 'Nao informado'}\n\n📱 *Telefone:* ${inputData.phoneNumber}\n👤 *Nome:* ${context.contact_name || collectedData.name || 'Nao informado'}\n📊 *Estagio:* ${context.current_stage}\n😊 *Sentimento:* ${inputData.sentiment}\n\n*Ultimas mensagens:*\n${lastMessages}\n\n*Dados coletados:*\n${dataFormatted}\n`.trim();\n\n// WhatsApp Web link\nconst whatsappLink = `https://wa.me/${inputData.phoneNumber}`;\n\nreturn [{\n  json: {\n    summary,\n    priority,\n    category: inputData.handoffCategory,\n    phoneNumber: inputData.phoneNumber,\n    contactName: context.contact_name || collectedData.name,\n    whatsappLink,\n    conversationId: context.id,\n    collectedData,\n    reason: inputData.handoffReason\n  }\n}];"
+      },
+      "id": "format-handoff",
+      "name": "Format Handoff Package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-business-hours",
+              "leftValue": "={{ new Date().getHours() >= 8 && new Date().getHours() < 18 && new Date().getDay() > 0 && new Date().getDay() < 6 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-business-hours",
+      "name": "IF Business Hours",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": {{ JSON.stringify($json.summary) }},\n  \"parse_mode\": \"Markdown\",\n  \"reply_markup\": {\n    \"inline_keyboard\": [\n      [\n        {\n          \"text\": \"📱 Abrir WhatsApp\",\n          \"url\": \"{{ $json.whatsappLink }}\"\n        }\n      ],\n      [\n        {\n          \"text\": \"✅ Assumir\",\n          \"callback_data\": \"assign_{{ $json.conversationId }}\"\n        },\n        {\n          \"text\": \"🔔 Lembrar em 30min\",\n          \"callback_data\": \"remind_{{ $json.conversationId }}\"\n        }\n      ]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM }}",
+        "toEmail": "={{ $env.HANDOFF_EMAIL }}",
+        "subject": "=[{{ $json.priority.toUpperCase() }}] Handoff - {{ $json.contactName || $json.phoneNumber }}",
+        "emailType": "html",
+        "html": "=<h2>🚨 Handoff Necessario</h2>\n\n<p><strong>Prioridade:</strong> {{ $json.priority }}</p>\n<p><strong>Categoria:</strong> {{ $json.category }}</p>\n<p><strong>Motivo:</strong> {{ $json.reason }}</p>\n\n<hr>\n\n<h3>Dados do Contato</h3>\n<p><strong>Telefone:</strong> {{ $json.phoneNumber }}</p>\n<p><strong>Nome:</strong> {{ $json.contactName || 'Nao informado' }}</p>\n\n<p><a href=\"{{ $json.whatsappLink }}\" style=\"background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Abrir WhatsApp</a></p>\n\n<hr>\n\n<h3>Dados Coletados</h3>\n<pre>{{ JSON.stringify($json.collectedData, null, 2) }}</pre>\n\n<hr>\n\n<p><em>Este e um email automatico do sistema de atendimento.</em></p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1100, 400],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-creds",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "handoff_queue",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "conversation_id",
+              "fieldValue": "={{ $json.conversationId }}"
+            },
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $json.phoneNumber }}"
+            },
+            {
+              "fieldId": "contact_name",
+              "fieldValue": "={{ $json.contactName }}"
+            },
+            {
+              "fieldId": "reason",
+              "fieldValue": "={{ $json.reason }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $json.priority }}"
+            },
+            {
+              "fieldId": "context_summary",
+              "fieldValue": "={{ $json.summary }}"
+            },
+            {
+              "fieldId": "collected_data",
+              "fieldValue": "={{ JSON.stringify($json.collectedData) }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-handoff-record",
+      "name": "Create Handoff Record",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1350, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "conversation_states",
+        "filterType": "string",
+        "filterString": "=phone_number=eq.{{ $('Format Handoff Package').item.json.phoneNumber }}",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "awaiting_human"
+            },
+            {
+              "fieldId": "handoff_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "handoff_reason",
+              "fieldValue": "={{ $('Format Handoff Package').item.json.reason }}"
+            },
+            {
+              "fieldId": "handoff_category",
+              "fieldValue": "={{ $('Format Handoff Package').item.json.category }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-conversation-status",
+      "name": "Update Conversation Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1550, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "id": "merge-notifications",
+      "name": "Merge Notification Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1350, 150]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Full Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Full Context": {
+      "main": [
+        [
+          {
+            "node": "Format Handoff Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Handoff Package": {
+      "main": [
+        [
+          {
+            "node": "IF Business Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Business Hours": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Alert": {
+      "main": [
+        [
+          {
+            "node": "Create Handoff Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Alert": {
+      "main": [
+        [
+          {
+            "node": "Create Handoff Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Handoff Record": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "clinic-whatsapp-bot"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "handoff",
+      "id": "4"
+    },
+    {
+      "name": "production",
+      "id": "2"
+    }
+  ]
+}
