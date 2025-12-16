@@ -33,7 +33,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare context for AI Agent\nconst inputData = $('Execute Workflow Trigger').first().json;\nconst stateResult = $input.all();\nconst hasState = stateResult.length > 0 && stateResult[0].json.id;\n\nlet state = hasState ? stateResult[0].json : null;\n\nconst conversationStage = state?.current_stage || 'greeting';\nconst collectedData = state?.collected_data || {};\nconst messageHistory = state?.message_history || [];\nconst language = state?.language || 'pt';\n\n// Required fields for qualification\nconst requiredFields = ['name', 'email', 'cep', 'date_of_birth', 'cpf', 'referral_source'];\nconst missingFields = requiredFields.filter(f => !collectedData[f]);\n\n// Check age if DOB is collected\nlet ageValid = true;\nlet calculatedAge = null;\nif (collectedData.date_of_birth) {\n  const dob = new Date(collectedData.date_of_birth);\n  const today = new Date();\n  calculatedAge = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000));\n  ageValid = calculatedAge >= 16;\n}\n\n// Build chat history for AI Agent memory\nconst chatHistory = messageHistory.map(m => ({\n  role: m.role === 'user' ? 'user' : 'assistant',\n  content: m.content\n}));\n\nreturn [{\n  json: {\n    conversationId: state?.id || null,\n    isNewConversation: !hasState,\n    phoneNumber: inputData.messageData.from,\n    contactName: inputData.messageData.contactName,\n    stage: conversationStage,\n    collectedData,\n    missingFields,\n    ageValid,\n    calculatedAge,\n    language,\n    chatHistory,\n    inputMessage: inputData.processedText,\n    messageType: inputData.originalType,\n    rawMessageData: inputData.messageData,\n    \n    // Context for system prompt\n    systemContext: `\n## CONTEXTO DA CONVERSA\nTelefone: ${inputData.messageData.from}\nNome: ${inputData.messageData.contactName || 'Nao informado'}\nEstagio: ${conversationStage}\nIdioma: ${language}\nNova conversa: ${!hasState ? 'Sim' : 'Nao'}\n\n## DADOS COLETADOS\n${JSON.stringify(collectedData, null, 2)}\n\n## CAMPOS FALTANDO\n${missingFields.length > 0 ? missingFields.join(', ') : 'Todos coletados!'}\n\n## VALIDACAO IDADE\n${calculatedAge !== null ? `Idade: ${calculatedAge} anos - ${ageValid ? 'VALIDO' : 'MENOR DE 16'}` : 'Nao informada'}\n`\n  }\n}];"
+        "jsCode": "// Prepare context for AI Agent\nconst inputData = $('Execute Workflow Trigger').first().json;\nconst stateResult = $input.all();\nconst hasState = stateResult.length > 0 && stateResult[0].json.id;\n\nlet state = hasState ? stateResult[0].json : null;\n\nconst conversationStage = state?.current_stage || 'greeting';\nconst collectedData = state?.collected_data || {};\nconst messageHistory = state?.message_history || [];\nconst language = state?.language || 'pt';\n\n// Required fields for qualification\nconst requiredFields = ['name', 'email', 'cep', 'date_of_birth', 'cpf', 'referral_source'];\nconst missingFields = requiredFields.filter(f => !collectedData[f]);\n\n// Check age if DOB is collected\nlet ageValid = true;\nlet calculatedAge = null;\nif (collectedData.date_of_birth) {\n  const dob = new Date(collectedData.date_of_birth);\n  const today = new Date();\n  calculatedAge = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000));\n  ageValid = calculatedAge >= 16;\n}\n\n// Build chat history for AI Agent memory\nconst chatHistory = messageHistory.map(m => ({\n  role: m.role === 'user' ? 'user' : 'assistant',\n  content: m.content\n}));\n\n// Get remoteJid for Evolution API response\nconst remoteJid = inputData.messageData.remoteJid || `${inputData.messageData.from}@s.whatsapp.net`;\n\nreturn [{\n  json: {\n    conversationId: state?.id || null,\n    isNewConversation: !hasState,\n    phoneNumber: inputData.messageData.from,\n    remoteJid: remoteJid,\n    contactName: inputData.messageData.contactName,\n    stage: conversationStage,\n    collectedData,\n    missingFields,\n    ageValid,\n    calculatedAge,\n    language,\n    chatHistory,\n    inputMessage: inputData.processedText,\n    messageType: inputData.originalType,\n    rawMessageData: inputData.messageData,\n    \n    // Context for system prompt\n    systemContext: `\n## CONTEXTO DA CONVERSA\nTelefone: ${inputData.messageData.from}\nNome: ${inputData.messageData.contactName || 'Nao informado'}\nEstagio: ${conversationStage}\nIdioma: ${language}\nNova conversa: ${!hasState ? 'Sim' : 'Nao'}\n\n## DADOS COLETADOS\n${JSON.stringify(collectedData, null, 2)}\n\n## CAMPOS FALTANDO\n${missingFields.length > 0 ? missingFields.join(', ') : 'Todos coletados!'}\n\n## VALIDACAO IDADE\n${calculatedAge !== null ? `Idade: ${calculatedAge} anos - ${ageValid ? 'VALIDO' : 'MENOR DE 16'}` : 'Nao informada'}\n`\n  }\n}];"
       },
       "id": "prepare-context",
       "name": "Prepare Context",
@@ -164,7 +164,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI Agent response and prepare state update\nconst aiResponse = $input.first().json;\nconst context = $('Prepare Context').first().json;\n\n// Extract the response text\nconst responseText = aiResponse.output || aiResponse.text || '';\n\n// Try to extract structured data from response\nlet extractedData = {};\nlet newStage = context.stage;\nlet requiresAction = null;\n\n// Simple extraction patterns (AI should format response to include these)\nconst nameMatch = responseText.match(/\\[EXTRACTED_NAME:([^\\]]+)\\]/);\nconst emailMatch = responseText.match(/\\[EXTRACTED_EMAIL:([^\\]]+)\\]/);\nconst stageMatch = responseText.match(/\\[NEW_STAGE:([^\\]]+)\\]/);\nconst actionMatch = responseText.match(/\\[ACTION:([^\\]]+)\\]/);\n\nif (nameMatch) extractedData.name = nameMatch[1].trim();\nif (emailMatch) extractedData.email = emailMatch[1].trim();\nif (stageMatch) newStage = stageMatch[1].trim();\nif (actionMatch) requiresAction = actionMatch[1].trim();\n\n// Clean response (remove extraction markers)\nlet cleanResponse = responseText\n  .replace(/\\[EXTRACTED_\\w+:[^\\]]+\\]/g, '')\n  .replace(/\\[NEW_STAGE:[^\\]]+\\]/g, '')\n  .replace(/\\[ACTION:[^\\]]+\\]/g, '')\n  .trim();\n\n// Update collected data\nconst updatedCollectedData = {\n  ...context.collectedData,\n  ...extractedData\n};\n\n// Update message history\nconst newHistory = [\n  ...context.chatHistory,\n  { role: 'user', content: context.inputMessage, timestamp: new Date().toISOString() },\n  { role: 'assistant', content: cleanResponse, timestamp: new Date().toISOString() }\n];\n\nreturn [{\n  json: {\n    responseMessage: cleanResponse,\n    extractedData,\n    updatedCollectedData,\n    newStage,\n    requiresAction,\n    conversationId: context.conversationId,\n    phoneNumber: context.phoneNumber,\n    contactName: context.contactName,\n    language: context.language,\n    messageHistory: newHistory\n  }\n}];"
+        "jsCode": "// Parse AI Agent response and prepare state update\nconst aiResponse = $input.first().json;\nconst context = $('Prepare Context').first().json;\n\n// Extract the response text\nconst responseText = aiResponse.output || aiResponse.text || '';\n\n// Try to extract structured data from response\nlet extractedData = {};\nlet newStage = context.stage;\nlet requiresAction = null;\n\n// Simple extraction patterns (AI should format response to include these)\nconst nameMatch = responseText.match(/\\[EXTRACTED_NAME:([^\\]]+)\\]/);\nconst emailMatch = responseText.match(/\\[EXTRACTED_EMAIL:([^\\]]+)\\]/);\nconst stageMatch = responseText.match(/\\[NEW_STAGE:([^\\]]+)\\]/);\nconst actionMatch = responseText.match(/\\[ACTION:([^\\]]+)\\]/);\n\nif (nameMatch) extractedData.name = nameMatch[1].trim();\nif (emailMatch) extractedData.email = emailMatch[1].trim();\nif (stageMatch) newStage = stageMatch[1].trim();\nif (actionMatch) requiresAction = actionMatch[1].trim();\n\n// Clean response (remove extraction markers)\nlet cleanResponse = responseText\n  .replace(/\\[EXTRACTED_\\w+:[^\\]]+\\]/g, '')\n  .replace(/\\[NEW_STAGE:[^\\]]+\\]/g, '')\n  .replace(/\\[ACTION:[^\\]]+\\]/g, '')\n  .trim();\n\n// Update collected data\nconst updatedCollectedData = {\n  ...context.collectedData,\n  ...extractedData\n};\n\n// Update message history\nconst newHistory = [\n  ...context.chatHistory,\n  { role: 'user', content: context.inputMessage, timestamp: new Date().toISOString() },\n  { role: 'assistant', content: cleanResponse, timestamp: new Date().toISOString() }\n];\n\nreturn [{\n  json: {\n    responseMessage: cleanResponse,\n    extractedData,\n    updatedCollectedData,\n    newStage,\n    requiresAction,\n    conversationId: context.conversationId,\n    phoneNumber: context.phoneNumber,\n    remoteJid: context.remoteJid,\n    contactName: context.contactName,\n    language: context.language,\n    messageHistory: newHistory\n  }\n}];"
       },
       "id": "parse-ai-response",
       "name": "Parse AI Response",
@@ -228,25 +228,85 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v18.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE_NAME }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phoneNumber }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": {{ JSON.stringify($json.responseMessage) }}\n  }\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phoneNumber }}\",\n  \"text\": {{ JSON.stringify($json.responseMessage) }}\n}",
         "options": {}
       },
       "id": "send-whatsapp",
-      "name": "Send WhatsApp Response",
+      "name": "Send WhatsApp Response (Evolution API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1650, 300],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "whatsapp-token",
-          "name": "WhatsApp Token"
+          "id": "evolution-api-key",
+          "name": "Evolution API Key"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-chatwoot",
+              "leftValue": "={{ $env.CHATWOOT_ENABLED }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-chatwoot-enabled",
+      "name": "IF Chatwoot Enabled",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWOOT_API_URL }}/api/v1/accounts/{{ $env.CHATWOOT_ACCOUNT_ID }}/conversations/{{ $json.chatwootConversationId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": {{ JSON.stringify($('Parse AI Response').first().json.responseMessage) }},\n  \"message_type\": \"outgoing\",\n  \"private\": false\n}",
+        "options": {}
+      },
+      "id": "sync-to-chatwoot",
+      "name": "Sync to Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2050, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "chatwoot-api-key",
+          "name": "Chatwoot API Key"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-op-chatwoot",
+      "name": "No Chatwoot Sync",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2050, 400]
     }
   ],
   "connections": {
@@ -386,7 +446,36 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp Response",
+            "node": "Send WhatsApp Response (Evolution API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Response (Evolution API)": {
+      "main": [
+        [
+          {
+            "node": "IF Chatwoot Enabled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Chatwoot Enabled": {
+      "main": [
+        [
+          {
+            "node": "Sync to Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Chatwoot Sync",
             "type": "main",
             "index": 0
           }
@@ -400,7 +489,7 @@
   "staticData": null,
   "meta": {
     "instanceId": "clinic-whatsapp-bot",
-    "notes": "This v2 workflow uses n8n's native AI Agent node instead of raw HTTP requests to Claude. Benefits: built-in memory, native tool support, better error handling, automatic context management."
+    "notes": "This v2 workflow uses n8n's native AI Agent node with Evolution API for WhatsApp messaging. Supports optional Chatwoot integration for conversation management. Benefits: built-in memory, native tool support, better error handling, automatic context management."
   },
   "pinData": {},
   "tags": [
@@ -411,6 +500,10 @@
     {
       "name": "ai-agent",
       "id": "6"
+    },
+    {
+      "name": "evolution-api",
+      "id": "7"
     },
     {
       "name": "production",

@@ -1,0 +1,327 @@
+{
+  "name": "Chatwoot Webhook Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-chatwoot",
+      "name": "Chatwoot Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "chatwoot-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate Chatwoot webhook payload\nconst body = $input.first().json.body;\n\n// Get event type\nconst event = body.event;\n\n// Only process message_created events from agents (outgoing)\nif (event !== 'message_created') {\n  return [{ json: { skip: true, reason: `Event type: ${event}` } }];\n}\n\nconst message = body;\nconst messageType = message.message_type;\n\n// message_type: 0 = incoming (from customer), 1 = outgoing (from agent)\n// Only process outgoing messages (from agents)\nif (messageType !== 'outgoing' && messageType !== 1) {\n  return [{ json: { skip: true, reason: 'Not an outgoing message from agent' } }];\n}\n\n// Skip private notes (internal comments)\nif (message.private === true) {\n  return [{ json: { skip: true, reason: 'Private note' } }];\n}\n\n// Extract conversation and contact info\nconst conversation = message.conversation || {};\nconst contact = message.sender || {};\nconst inbox = message.inbox || {};\nconst account = message.account || {};\n\n// Get phone number from contact attributes or conversation\nlet phoneNumber = null;\nconst contactIdentifier = conversation.meta?.sender?.identifier || contact.phone_number;\n\nif (contactIdentifier) {\n  // Clean phone number (remove + and any non-numeric chars except country code)\n  phoneNumber = contactIdentifier.replace(/[^0-9]/g, '');\n}\n\nif (!phoneNumber) {\n  // Try to get from conversation additional attributes\n  const additionalAttrs = conversation.additional_attributes || {};\n  phoneNumber = additionalAttrs.phone_number || additionalAttrs.contact_phone;\n}\n\nif (!phoneNumber) {\n  return [{ json: { skip: true, reason: 'No phone number found' } }];\n}\n\n// Extract message content\nconst content = message.content || '';\nconst contentType = message.content_type || 'text';\nconst attachments = message.attachments || [];\n\nreturn [{\n  json: {\n    skip: false,\n    event: event,\n    messageId: message.id,\n    conversationId: conversation.id,\n    phoneNumber: phoneNumber,\n    content: content,\n    contentType: contentType,\n    attachments: attachments,\n    inboxId: inbox.id,\n    inboxName: inbox.name,\n    accountId: account.id,\n    agentName: contact.name || 'Agent',\n    agentEmail: contact.email,\n    timestamp: message.created_at\n  }\n}];"
+      },
+      "id": "extract-chatwoot-data",
+      "name": "Extract Chatwoot Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-skip",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {},
+      "id": "no-op-skip",
+      "name": "No Operation (Skip)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-attachments",
+              "leftValue": "={{ $json.attachments.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-attachments",
+      "name": "IF Has Attachments",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phoneNumber }}\",\n  \"text\": {{ JSON.stringify($json.content) }}\n}",
+        "options": {}
+      },
+      "id": "send-text-whatsapp",
+      "name": "Send Text to WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-key",
+          "name": "Evolution API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process attachments and send via Evolution API\nconst inputData = $input.first().json;\nconst attachments = inputData.attachments || [];\n\n// Return array of attachment messages to send\nconst messages = [];\n\nfor (const attachment of attachments) {\n  const fileType = attachment.file_type || 'file';\n  const fileUrl = attachment.data_url || attachment.url;\n  const fileName = attachment.file_name || 'file';\n  const caption = inputData.content || '';\n  \n  let messageType = 'document';\n  let endpoint = 'sendMedia';\n  \n  // Determine message type based on file type\n  if (fileType === 'image' || /\\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) {\n    messageType = 'image';\n  } else if (fileType === 'audio' || /\\.(mp3|ogg|wav|m4a)$/i.test(fileName)) {\n    messageType = 'audio';\n  } else if (fileType === 'video' || /\\.(mp4|avi|mov|webm)$/i.test(fileName)) {\n    messageType = 'video';\n  }\n  \n  messages.push({\n    phoneNumber: inputData.phoneNumber,\n    mediaType: messageType,\n    mediaUrl: fileUrl,\n    fileName: fileName,\n    caption: caption\n  });\n}\n\n// If no attachments but has text, send text message\nif (messages.length === 0 && inputData.content) {\n  messages.push({\n    phoneNumber: inputData.phoneNumber,\n    isText: true,\n    text: inputData.content\n  });\n}\n\nreturn messages.map(m => ({ json: m }));"
+      },
+      "id": "process-attachments",
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendMedia/{{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phoneNumber }}\",\n  \"mediatype\": \"{{ $json.mediaType }}\",\n  \"media\": \"{{ $json.mediaUrl }}\",\n  \"fileName\": \"{{ $json.fileName }}\",\n  \"caption\": {{ JSON.stringify($json.caption || '') }}\n}",
+        "options": {}
+      },
+      "id": "send-media-whatsapp",
+      "name": "Send Media to WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1550, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-key",
+          "name": "Evolution API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "conversation_states",
+        "conflictType": "column",
+        "conflictColumn": "phone_number",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "fieldValues": [
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $('Extract Chatwoot Data').first().json.phoneNumber }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "human_handling"
+            },
+            {
+              "fieldId": "chatwoot_conversation_id",
+              "fieldValue": "={{ $('Extract Chatwoot Data').first().json.conversationId }}"
+            },
+            {
+              "fieldId": "last_message_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-state-human",
+      "name": "Update State (Human Handling)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-creds",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chatwoot Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Chatwoot Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Chatwoot Data": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF Has Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Attachments": {
+      "main": [
+        [
+          {
+            "node": "Process Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Text to WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Attachments": {
+      "main": [
+        [
+          {
+            "node": "Send Media to WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Text to WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Update State (Human Handling)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Media to WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Update State (Human Handling)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "clinic-whatsapp-bot",
+    "notes": "Receives webhooks from Chatwoot when an agent sends a message, forwards it to WhatsApp via Evolution API. This enables bi-directional communication between Chatwoot inbox and WhatsApp."
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "chatwoot",
+      "id": "8"
+    },
+    {
+      "name": "evolution-api",
+      "id": "7"
+    },
+    {
+      "name": "production",
+      "id": "2"
+    }
+  ]
+}

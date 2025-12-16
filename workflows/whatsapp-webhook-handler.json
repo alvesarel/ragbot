@@ -1,5 +1,5 @@
 {
-  "name": "WhatsApp Webhook Handler",
+  "name": "WhatsApp Webhook Handler (Evolution API)",
   "nodes": [
     {
       "parameters": {
@@ -9,90 +9,11 @@
         "options": {}
       },
       "id": "webhook-post",
-      "name": "WhatsApp Webhook POST",
+      "name": "Evolution API Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [250, 300],
       "webhookId": "whatsapp-webhook"
-    },
-    {
-      "parameters": {
-        "httpMethod": "GET",
-        "path": "whatsapp",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "id": "webhook-get",
-      "name": "WhatsApp Verification GET",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [250, 100],
-      "webhookId": "whatsapp-verification"
-    },
-    {
-      "parameters": {
-        "respondWith": "text",
-        "responseBody": "={{ $json.query['hub.challenge'] }}",
-        "options": {}
-      },
-      "id": "respond-verification",
-      "name": "Respond Verification",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [650, 100]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "verify-token",
-              "leftValue": "={{ $json.query['hub.verify_token'] }}",
-              "rightValue": "={{ $env.WHATSAPP_VERIFY_TOKEN }}",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "if-valid-token",
-      "name": "IF Valid Verify Token",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [450, 100]
-    },
-    {
-      "parameters": {
-        "respondWith": "text",
-        "responseBody": "Invalid verify token",
-        "options": {
-          "responseCode": 403
-        }
-      },
-      "id": "respond-invalid",
-      "name": "Respond Invalid",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [650, 200]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Validate webhook signature\nconst crypto = require('crypto');\n\nconst signature = $input.first().json.headers['x-hub-signature-256'];\nconst payload = JSON.stringify($input.first().json.body);\nconst appSecret = $env.WHATSAPP_APP_SECRET;\n\nif (!signature || !appSecret) {\n  throw new Error('Missing signature or app secret');\n}\n\nconst expectedSignature = 'sha256=' + \n  crypto.createHmac('sha256', appSecret)\n        .update(payload)\n        .digest('hex');\n\nif (signature !== expectedSignature) {\n  throw new Error('Invalid webhook signature');\n}\n\nreturn $input.first();"
-      },
-      "id": "verify-signature",
-      "name": "Verify Webhook Signature",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [450, 300]
     },
     {
       "parameters": {
@@ -110,7 +31,17 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract message data from WhatsApp webhook\nconst body = $input.first().json.body;\nconst entry = body.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\n\n// Skip if no messages (could be status update)\nconst messages = value?.messages;\nif (!messages || messages.length === 0) {\n  return [{ json: { skip: true, reason: 'No messages in payload' } }];\n}\n\nconst message = messages[0];\nconst contact = value?.contacts?.[0];\nconst metadata = value?.metadata;\n\n// Extract message content based on type\nlet messageContent = null;\nlet mediaUrl = null;\nlet mediaId = null;\n\nswitch (message.type) {\n  case 'text':\n    messageContent = message.text?.body;\n    break;\n  case 'audio':\n    mediaId = message.audio?.id;\n    messageContent = '[AUDIO_MESSAGE]';\n    break;\n  case 'image':\n    mediaId = message.image?.id;\n    messageContent = message.image?.caption || '[IMAGE]';\n    break;\n  case 'document':\n    mediaId = message.document?.id;\n    messageContent = message.document?.filename || '[DOCUMENT]';\n    break;\n  case 'video':\n    mediaId = message.video?.id;\n    messageContent = message.video?.caption || '[VIDEO]';\n    break;\n  case 'sticker':\n    messageContent = '[STICKER]';\n    break;\n  case 'location':\n    messageContent = `[LOCATION: ${message.location?.latitude}, ${message.location?.longitude}]`;\n    break;\n  case 'contacts':\n    messageContent = '[CONTACT_SHARED]';\n    break;\n  case 'interactive':\n    // Button or list reply\n    if (message.interactive?.type === 'button_reply') {\n      messageContent = message.interactive.button_reply?.title;\n    } else if (message.interactive?.type === 'list_reply') {\n      messageContent = message.interactive.list_reply?.title;\n    }\n    break;\n  default:\n    messageContent = `[UNKNOWN_TYPE: ${message.type}]`;\n}\n\nreturn [{\n  json: {\n    skip: false,\n    messageId: message.id,\n    from: message.from,\n    timestamp: message.timestamp,\n    type: message.type,\n    content: messageContent,\n    mediaId: mediaId,\n    contactName: contact?.profile?.name || 'Unknown',\n    waId: contact?.wa_id,\n    phoneNumberId: metadata?.phone_number_id,\n    displayPhoneNumber: metadata?.display_phone_number,\n    rawMessage: message\n  }\n}];"
+        "jsCode": "// Validate Evolution API webhook and extract headers\nconst body = $input.first().json.body;\nconst headers = $input.first().json.headers;\n\n// Optional: Validate API Key if configured\nconst configuredApiKey = $env.EVOLUTION_WEBHOOK_SECRET;\nconst receivedApiKey = headers['apikey'] || headers['x-api-key'];\n\nif (configuredApiKey && configuredApiKey !== receivedApiKey) {\n  throw new Error('Invalid webhook API key');\n}\n\n// Check if this is a valid message event\nconst event = body.event;\nif (event !== 'messages.upsert') {\n  return [{ json: { skip: true, reason: `Event type: ${event}` } }];\n}\n\nreturn $input.first();"
+      },
+      "id": "verify-webhook",
+      "name": "Verify Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract message data from Evolution API webhook (messages.upsert event)\nconst body = $input.first().json.body;\n\n// Evolution API payload structure\nconst data = body.data;\nconst instance = body.instance;\nconst sender = body.sender;\n\n// Skip if no data\nif (!data) {\n  return [{ json: { skip: true, reason: 'No data in payload' } }];\n}\n\nconst key = data.key;\nconst message = data.message;\nconst pushName = data.pushName;\nconst messageTimestamp = data.messageTimestamp;\n\n// Skip messages sent by us (fromMe = true)\nif (key?.fromMe === true) {\n  return [{ json: { skip: true, reason: 'Message sent by us' } }];\n}\n\n// Skip status broadcasts\nconst remoteJid = key?.remoteJid || '';\nif (remoteJid.includes('status@broadcast')) {\n  return [{ json: { skip: true, reason: 'Status broadcast' } }];\n}\n\n// Extract phone number from remoteJid (format: 5511999999999@s.whatsapp.net)\nconst phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\n\n// Determine message type and content\nlet messageType = 'text';\nlet messageContent = null;\nlet mediaUrl = null;\nlet mediaBase64 = null;\nlet mediaMimeType = null;\nlet caption = null;\n\nif (message) {\n  // Text messages\n  if (message.conversation) {\n    messageContent = message.conversation;\n    messageType = 'text';\n  } else if (message.extendedTextMessage?.text) {\n    messageContent = message.extendedTextMessage.text;\n    messageType = 'text';\n  }\n  // Audio messages\n  else if (message.audioMessage) {\n    messageType = 'audio';\n    messageContent = '[AUDIO_MESSAGE]';\n    mediaBase64 = data.message?.audioMessage?.base64 || data.base64;\n    mediaMimeType = message.audioMessage.mimetype;\n  }\n  // Image messages\n  else if (message.imageMessage) {\n    messageType = 'image';\n    caption = message.imageMessage.caption || '';\n    messageContent = caption || '[IMAGE]';\n    mediaBase64 = data.message?.imageMessage?.base64 || data.base64;\n    mediaMimeType = message.imageMessage.mimetype;\n  }\n  // Video messages\n  else if (message.videoMessage) {\n    messageType = 'video';\n    caption = message.videoMessage.caption || '';\n    messageContent = caption || '[VIDEO]';\n    mediaBase64 = data.message?.videoMessage?.base64 || data.base64;\n    mediaMimeType = message.videoMessage.mimetype;\n  }\n  // Document messages\n  else if (message.documentMessage) {\n    messageType = 'document';\n    messageContent = message.documentMessage.fileName || '[DOCUMENT]';\n    mediaBase64 = data.message?.documentMessage?.base64 || data.base64;\n    mediaMimeType = message.documentMessage.mimetype;\n  }\n  // Sticker messages\n  else if (message.stickerMessage) {\n    messageType = 'sticker';\n    messageContent = '[STICKER]';\n  }\n  // Location messages\n  else if (message.locationMessage) {\n    messageType = 'location';\n    const lat = message.locationMessage.degreesLatitude;\n    const lng = message.locationMessage.degreesLongitude;\n    messageContent = `[LOCATION: ${lat}, ${lng}]`;\n  }\n  // Contact messages\n  else if (message.contactMessage || message.contactsArrayMessage) {\n    messageType = 'contact';\n    messageContent = '[CONTACT_SHARED]';\n  }\n  // Button response\n  else if (message.buttonsResponseMessage) {\n    messageType = 'interactive';\n    messageContent = message.buttonsResponseMessage.selectedButtonId || message.buttonsResponseMessage.selectedDisplayText;\n  }\n  // List response\n  else if (message.listResponseMessage) {\n    messageType = 'interactive';\n    messageContent = message.listResponseMessage.singleSelectReply?.selectedRowId || message.listResponseMessage.title;\n  }\n  // Reaction\n  else if (message.reactionMessage) {\n    messageType = 'reaction';\n    messageContent = message.reactionMessage.text || '[REACTION]';\n  }\n  // Unknown type\n  else {\n    messageContent = '[UNKNOWN_MESSAGE_TYPE]';\n    messageType = 'unknown';\n  }\n}\n\nreturn [{\n  json: {\n    skip: false,\n    messageId: key?.id,\n    from: phoneNumber,\n    timestamp: messageTimestamp,\n    type: messageType,\n    content: messageContent,\n    caption: caption,\n    mediaBase64: mediaBase64,\n    mediaMimeType: mediaMimeType,\n    contactName: pushName || 'Unknown',\n    remoteJid: remoteJid,\n    instanceName: instance,\n    sender: sender,\n    rawMessage: message\n  }\n}];"
       },
       "id": "extract-message",
       "name": "Extract Message Data",
@@ -287,49 +218,13 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=https://graph.facebook.com/v18.0/{{ $json.mediaId }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "jsCode": "// Convert base64 audio to binary for Whisper transcription\nconst inputData = $input.first().json;\n\nif (!inputData.mediaBase64) {\n  // If no base64, skip transcription\n  return [{\n    json: {\n      ...inputData,\n      processedText: '[Audio message - transcription unavailable]',\n      originalType: 'audio'\n    }\n  }];\n}\n\n// Return binary data for transcription\nconst binaryData = Buffer.from(inputData.mediaBase64, 'base64');\n\nreturn [{\n  json: inputData,\n  binary: {\n    data: {\n      data: inputData.mediaBase64,\n      mimeType: inputData.mediaMimeType || 'audio/ogg',\n      fileName: 'audio.ogg'\n    }\n  }\n}];"
       },
-      "id": "get-audio-url",
-      "name": "Get Audio URL",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1500, 350],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "whatsapp-token",
-          "name": "WhatsApp Token"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $json.url }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file"
-            }
-          }
-        }
-      },
-      "id": "download-audio",
-      "name": "Download Audio",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1700, 350],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "whatsapp-token",
-          "name": "WhatsApp Token"
-        }
-      }
+      "id": "prepare-audio",
+      "name": "Prepare Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 350]
     },
     {
       "parameters": {
@@ -364,7 +259,7 @@
       "name": "Transcribe Audio (Whisper)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1900, 350],
+      "position": [1700, 350],
       "credentials": {
         "httpHeaderAuth": {
           "id": "openai-key",
@@ -402,27 +297,7 @@
       "name": "Set Audio Transcription",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [2100, 350]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=https://graph.facebook.com/v18.0/{{ $json.mediaId }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {}
-      },
-      "id": "get-image-url",
-      "name": "Get Image URL",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1500, 500],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "whatsapp-token",
-          "name": "WhatsApp Token"
-        }
-      }
+      "position": [1900, 350]
     },
     {
       "parameters": {
@@ -431,7 +306,7 @@
             {
               "id": "set-processed-text-image",
               "name": "processedText",
-              "value": "=[Usuario enviou uma imagem]",
+              "value": "=[Usuario enviou uma imagem{{ $json.caption ? ': ' + $json.caption : '' }}]",
               "type": "string"
             },
             {
@@ -441,15 +316,15 @@
               "type": "string"
             },
             {
-              "id": "set-image-url",
-              "name": "imageUrl",
-              "value": "={{ $json.url }}",
+              "id": "set-image-base64",
+              "name": "imageBase64",
+              "value": "={{ $json.mediaBase64 }}",
               "type": "string"
             },
             {
               "id": "keep-message-data-image",
               "name": "messageData",
-              "value": "={{ $('Switch Message Type').item.json }}",
+              "value": "={{ $json }}",
               "type": "object"
             }
           ]
@@ -460,7 +335,7 @@
       "name": "Set Image Message",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1700, 500]
+      "position": [1500, 500]
     },
     {
       "parameters": {
@@ -528,25 +403,6 @@
     },
     {
       "parameters": {
-        "mode": "combine",
-        "mergeByFields": {
-          "values": [
-            {
-              "field1": "messageData.messageId",
-              "field2": "messageData.messageId"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "merge-messages",
-      "name": "Merge Processed Messages",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [2300, 500]
-    },
-    {
-      "parameters": {
         "workflowId": "={{ $env.ORCHESTRATOR_WORKFLOW_ID }}",
         "options": {}
       },
@@ -554,7 +410,7 @@
       "name": "Call Conversation Orchestrator",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
-      "position": [2500, 500]
+      "position": [2100, 500]
     },
     {
       "parameters": {},
@@ -566,40 +422,11 @@
     }
   ],
   "connections": {
-    "WhatsApp Verification GET": {
+    "Evolution API Webhook": {
       "main": [
         [
           {
-            "node": "IF Valid Verify Token",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF Valid Verify Token": {
-      "main": [
-        [
-          {
-            "node": "Respond Verification",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond Invalid",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "WhatsApp Webhook POST": {
-      "main": [
-        [
-          {
-            "node": "Verify Webhook Signature",
+            "node": "Verify Webhook",
             "type": "main",
             "index": 0
           },
@@ -611,7 +438,7 @@
         ]
       ]
     },
-    "Verify Webhook Signature": {
+    "Verify Webhook": {
       "main": [
         [
           {
@@ -662,14 +489,14 @@
         ],
         [
           {
-            "node": "Get Audio URL",
+            "node": "Prepare Audio",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Get Image URL",
+            "node": "Set Image Message",
             "type": "main",
             "index": 0
           }
@@ -701,18 +528,7 @@
         ]
       ]
     },
-    "Get Audio URL": {
-      "main": [
-        [
-          {
-            "node": "Download Audio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download Audio": {
+    "Prepare Audio": {
       "main": [
         [
           {
@@ -739,17 +555,6 @@
         [
           {
             "node": "Call Conversation Orchestrator",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Image URL": {
-      "main": [
-        [
-          {
-            "node": "Set Image Message",
             "type": "main",
             "index": 0
           }
@@ -795,13 +600,18 @@
   },
   "staticData": null,
   "meta": {
-    "instanceId": "clinic-whatsapp-bot"
+    "instanceId": "clinic-whatsapp-bot",
+    "notes": "Updated to use Evolution API instead of Meta's official WhatsApp Business API. Handles messages.upsert webhook events from Evolution API."
   },
   "pinData": {},
   "tags": [
     {
       "name": "whatsapp",
       "id": "1"
+    },
+    {
+      "name": "evolution-api",
+      "id": "7"
     },
     {
       "name": "production",

@@ -1,6 +1,18 @@
-# WhatsApp Business API Setup Guide
+# WhatsApp Business API Setup Guide (DEPRECATED)
 
-Complete guide to set up WhatsApp Business Cloud API for your clinic chatbot.
+> **DEPRECATED**: This guide is for Meta's official WhatsApp Business Cloud API, which is no longer the primary integration method for this project.
+>
+> **For the current setup, please see: [Evolution API Setup Guide](./EVOLUTION_API_SETUP_GUIDE.md)**
+>
+> Evolution API provides:
+> - No Meta Business verification required
+> - Free messaging (self-hosted)
+> - Faster setup (minutes vs days)
+> - Optional Chatwoot integration for agent inbox
+
+---
+
+Complete guide to set up WhatsApp Business Cloud API for your clinic chatbot (legacy method).
 
 ---
 
