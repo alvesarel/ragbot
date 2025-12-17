@@ -1,168 +1,161 @@
-# WhatsApp RAG Chatbot - Premium Weight Loss Clinic
+# Sofia Assistant
 
-AI-powered WhatsApp assistant for lead qualification and appointment scheduling, built on n8n with Claude (Anthropic).
-
-## Features
-
-- Conversational lead qualification in Portuguese & English
-- RAG-powered responses from clinic knowledge base
-- Google Calendar integration for scheduling
-- Human handoff via Telegram or Chatwoot for complex cases
-- LGPD-compliant data handling
-- Evolution API integration (no Meta Business verification needed)
-- Optional Chatwoot inbox for agent management
+AI-powered WhatsApp assistant for a premium weight loss clinic, built with n8n, Claude AI, and RAG.
 
 ## Architecture
 
 ```
-Meta Ads --> WhatsApp --> Evolution API --> n8n Orchestrator --> Claude AI
-                              |                   |
-                              |     +-------------+-------------+
-                              |     |             |             |
-                              |  Qdrant       Supabase    Google Calendar
-                              | (Knowledge)  (Lead Data)   (Scheduling)
-                              |
-                              └──────> Chatwoot (Optional)
-                                      (Agent Inbox)
+WhatsApp Business API → n8n Webhook → Sofia Workflow
+                                           │
+                    ┌──────────────────────┼──────────────────────┐
+                    │                      │                      │
+                    ▼                      ▼                      ▼
+              Supabase               Qdrant RAG              Claude AI
+           (Conversations)        (Knowledge Base)         (Responses)
+                    │                                            │
+                    └────────────────────────────────────────────┘
+                                           │
+                                           ▼
+                                    WhatsApp Reply
 ```
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Automation | n8n (self-hosted) |
-| LLM | Claude Haiku 4.5 (Anthropic) |
+| Automation | n8n |
+| LLM | Claude (Anthropic) |
 | Vector DB | Qdrant |
 | Database | Supabase |
-| Scheduling | Google Calendar |
-| WhatsApp | Evolution API (Baileys-based) |
-| Agent Inbox | Chatwoot (optional) |
+| WhatsApp | Official Business Cloud API |
 | Notifications | Telegram |
 
 ## Project Structure
 
 ```
 ragbot/
-├── workflows/           # n8n workflow JSON files
-│   ├── whatsapp-webhook-handler.json      # Evolution API webhook
-│   ├── conversation-orchestrator-v2.json  # AI Agent (main)
-│   ├── chatwoot-webhook-handler.json      # Chatwoot integration
-│   ├── human-handoff.json                 # Escalation logic
-│   ├── calendar-booking.json              # Scheduling
-│   └── ...
-├── database/           # Supabase schema and migrations
-├── prompts/            # Claude system prompts
+├── workflows/           # n8n workflow
+│   └── sofia-assistant.json  # Main workflow
+├── dashboard/           # Monitoring web app
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── database/           # Supabase schema
+│   └── schema.sql
+├── prompts/            # AI system prompt
+│   └── system-prompt.md
 ├── knowledge-base/     # RAG documents
-│   ├── institutional/  # About clinic, team, location
-│   ├── treatments/     # Medical weight loss info
-│   ├── patient_journey/# What to expect
-│   ├── faq/           # Common questions
-│   ├── objection_handling/  # Price, trust objections
-│   └── compliance/    # LGPD, disclaimers
-├── scripts/           # Utility scripts
-├── docs/              # Documentation
-└── .env.example       # Environment variables template
+│   ├── institutional/
+│   ├── treatments/
+│   ├── faq/
+│   ├── objection_handling/
+│   └── compliance/
+├── scripts/           # Utilities
+└── .env.example       # Environment template
 ```
 
-## Setup
+## Quick Start
 
-### 1. Prerequisites
-- n8n instance (self-hosted or cloud)
-- Supabase account
-- Qdrant instance
-- Evolution API server
-- Anthropic API key
-- OpenAI API key (for embeddings)
-- Google Calendar API access
-- Telegram bot
-- Chatwoot instance (optional)
+### 1. Database Setup
+```sql
+-- Run in Supabase SQL Editor
+-- Copy contents of database/schema.sql
+```
 
-### 2. Evolution API & Chatwoot Setup
-Follow the guide in `docs/EVOLUTION_API_SETUP_GUIDE.md`
-
-### 3. Database Setup
+### 2. Knowledge Base
 ```bash
-# Run the Supabase schema
-psql -f database/schema.sql
-```
-
-### 4. Environment Variables
-```bash
-cp .env.example .env
-# Edit .env with your credentials
-```
-
-Key variables:
-```env
-# Evolution API
-EVOLUTION_API_URL=https://your-evolution-api.com
-EVOLUTION_INSTANCE_NAME=clinic-bot
-EVOLUTION_API_KEY=your_api_key
-
-# Chatwoot (optional)
-CHATWOOT_ENABLED=false
-CHATWOOT_API_URL=https://your-chatwoot.com
-CHATWOOT_ACCOUNT_ID=1
-```
-
-### 5. Import n8n Workflows
-Import the JSON files from `workflows/` into your n8n instance:
-1. `whatsapp-webhook-handler.json` - Receives WhatsApp messages
-2. `conversation-orchestrator-v2.json` - AI processing (main workflow)
-3. `chatwoot-webhook-handler.json` - Agent replies (if using Chatwoot)
-4. Other supporting workflows
-
-### 6. Configure Credentials in n8n
-Create HTTP Header Auth credentials:
-- **Evolution API Key**: Header `apikey` with your API key
-- **Chatwoot API Key** (optional): Header `api_access_token`
-
-### 7. Knowledge Base
-1. Edit documents in `knowledge-base/`
-2. Run embedding script to index in Qdrant:
-```bash
+# Edit markdown files in knowledge-base/
+# Then run embedding script
 node scripts/embed_knowledge_base.js
 ```
 
-## Bot Personality: Sofia
+### 3. n8n Workflow
+1. Import `workflows/sofia-assistant.json`
+2. Configure credentials:
+   - Supabase API
+   - OpenAI API (embeddings)
+   - Anthropic API (Claude)
+   - WhatsApp Bearer Token
+   - Qdrant API Key
+   - Telegram Bot
+3. Activate workflow
+
+### 4. WhatsApp Setup
+1. Create WhatsApp Business App in Meta Developer Console
+2. Configure webhook: `https://your-n8n.com/webhook/whatsapp-webhook`
+3. Subscribe to `messages` field
+4. Set verify token
+
+### 5. Dashboard
+1. Open `dashboard/index.html`
+2. Enter Supabase URL and Anon Key
+3. Start monitoring
+
+## Environment Variables
+
+```env
+# WhatsApp Business API
+WHATSAPP_PHONE_NUMBER_ID=your_phone_id
+WHATSAPP_ACCESS_TOKEN=your_token
+WHATSAPP_VERIFY_TOKEN=your_verify_token
+
+# AI Services
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+OPENAI_API_KEY=sk-xxxxx
+
+# Database
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_KEY=eyJxxxxx
+SUPABASE_ANON_KEY=eyJxxxxx
+
+# Vector Database
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=your_key
+QDRANT_COLLECTION=sofia_knowledge
+
+# Notifications
+TELEGRAM_BOT_TOKEN=123:ABC
+TELEGRAM_CHAT_ID=-100123
+```
+
+## Conversation Flow
+
+1. **Greeting** - Welcome, LGPD consent
+2. **Discovery** - Understand goals
+3. **Qualification** - Collect contact data
+4. **Value Building** - Explain methodology
+5. **Scheduling** - Book appointment
+6. **Confirmation** - Send details
+
+## Sofia Personality
 
 - Warm, caring, professional
-- Bilingual (Portuguese primary, English supported)
-- Never mentions treatment prices
-- Consultation price (R$700) shared with value context
-- Focuses on personalized experience and results
+- Portuguese (primary), English supported
+- 1-2 emojis per message max
+- Conversational data collection (not form-like)
 
-## Lead Qualification Flow
+## Pricing Rules
 
-1. **Greeting** - Welcome, detect language
-2. **Discovery** - Understand goals and motivation
-3. **Qualification** - Collect name, email, CEP, DOB, CPF
-4. **Value Building** - Explain methodology, handle objections
-5. **Scheduling** - Check calendar, book appointment
-6. **Confirmation** - Send details and prep materials
+| Item | Rule |
+|------|------|
+| Consultation (R$700) | Can mention after building value |
+| Treatment (R$3,000+) | Never mention, redirect to consultation |
 
 ## Handoff Triggers
 
-- Under 16 years old (auto-disqualify)
-- Medical complexity (pregnancy, conditions)
-- Negative sentiment (3+ messages)
-- Complex negotiations (partnerships, B2B)
-- User requests human
+- Pregnancy/breastfeeding
+- Serious medical conditions
+- User frustration (3+ negative messages)
+- Direct request for human
+- Business negotiations
 
-## Chatwoot Integration (Optional)
+## Dashboard Features
 
-When Chatwoot is enabled:
-- All conversations are synced to Chatwoot inbox
-- Human agents can take over conversations
-- Agent replies are automatically sent to WhatsApp
-- Bot can be paused per conversation
-
-## Documentation
-
-- `docs/EVOLUTION_API_SETUP_GUIDE.md` - WhatsApp + Chatwoot setup
-- `docs/N8N_WORKFLOW_GUIDE.md` - Workflow configuration
-- `docs/QDRANT_SETUP_GUIDE.md` - Vector database setup
-- `docs/RAILWAY_DEPLOYMENT.md` - Production deployment
+- Real-time conversation tracking
+- Conversion funnel analytics
+- Stage distribution
+- Message history viewer
+- Search and filter
 
 ## License
 

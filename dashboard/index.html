@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sofia Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="logo-icon">💚</span>
+                <span class="logo-text">Sofia</span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-item active" data-view="overview">
+                    <span class="nav-icon">📊</span>
+                    <span>Visao Geral</span>
+                </a>
+                <a href="#" class="nav-item" data-view="conversations">
+                    <span class="nav-icon">💬</span>
+                    <span>Conversas</span>
+                </a>
+                <a href="#" class="nav-item" data-view="analytics">
+                    <span class="nav-icon">📈</span>
+                    <span>Metricas</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Configuracoes</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="status-indicator online"></div>
+                <span>Sofia Online</span>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Header -->
+            <header class="header">
+                <h1 id="page-title">Visao Geral</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="refreshData()">
+                        <span>🔄</span> Atualizar
+                    </button>
+                    <span class="last-update" id="last-update">Ultima atualizacao: --</span>
+                </div>
+            </header>
+
+            <!-- Overview View -->
+            <div id="view-overview" class="view active">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💬</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-total">--</span>
+                            <span class="stat-label">Total Conversas</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🟢</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-active">--</span>
+                            <span class="stat-label">Ativas Agora</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-scheduled">--</span>
+                            <span class="stat-label">Agendamentos</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🚨</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="stat-handoff">--</span>
+                            <span class="stat-label">Aguardando Humano</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Stats -->
+                <div class="section">
+                    <h2>Hoje</h2>
+                    <div class="stats-row">
+                        <div class="mini-stat">
+                            <span class="mini-stat-value" id="stat-messages-today">--</span>
+                            <span class="mini-stat-label">Mensagens</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-value" id="stat-conv-today">--</span>
+                            <span class="mini-stat-label">Novas Conversas</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-value" id="stat-avg-msg">--</span>
+                            <span class="mini-stat-label">Media Msgs/Conversa</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Conversations -->
+                <div class="section">
+                    <h2>Conversas Recentes</h2>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Contato</th>
+                                    <th>Estagio</th>
+                                    <th>Status</th>
+                                    <th>Mensagens</th>
+                                    <th>Ultima Atividade</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-conversations">
+                                <tr>
+                                    <td colspan="5" class="loading">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conversations View -->
+            <div id="view-conversations" class="view">
+                <div class="conversations-layout">
+                    <!-- Conversations List -->
+                    <div class="conversations-list">
+                        <div class="search-box">
+                            <input type="text" id="search-input" placeholder="Buscar por telefone ou nome...">
+                        </div>
+                        <div class="filter-tabs">
+                            <button class="filter-tab active" data-filter="all">Todas</button>
+                            <button class="filter-tab" data-filter="active">Ativas</button>
+                            <button class="filter-tab" data-filter="awaiting_human">Handoff</button>
+                            <button class="filter-tab" data-filter="scheduled">Agendadas</button>
+                        </div>
+                        <div id="conversations-list-items" class="list-items">
+                            <div class="loading">Carregando...</div>
+                        </div>
+                    </div>
+
+                    <!-- Conversation Detail -->
+                    <div class="conversation-detail" id="conversation-detail">
+                        <div class="empty-state">
+                            <span class="empty-icon">💬</span>
+                            <p>Selecione uma conversa</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics View -->
+            <div id="view-analytics" class="view">
+                <div class="section">
+                    <h2>Funil de Conversao (30 dias)</h2>
+                    <div class="funnel-container" id="conversion-funnel">
+                        <div class="loading">Carregando...</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Distribuicao por Estagio</h2>
+                    <div class="stage-chart" id="stage-distribution">
+                        <div class="loading">Carregando...</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Metricas Diarias</h2>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Entradas</th>
+                                    <th>Saidas</th>
+                                    <th>Usuarios</th>
+                                    <th>RAG Chunks</th>
+                                </tr>
+                            </thead>
+                            <tbody id="daily-metrics">
+                                <tr>
+                                    <td colspan="5" class="loading">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="view-settings" class="view">
+                <div class="section">
+                    <h2>Configuracoes do Supabase</h2>
+                    <form id="settings-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="supabase-url">Supabase URL</label>
+                            <input type="url" id="supabase-url" placeholder="https://xxx.supabase.co">
+                        </div>
+                        <div class="form-group">
+                            <label for="supabase-key">Supabase Anon Key</label>
+                            <input type="password" id="supabase-key" placeholder="eyJhbGciOiJI...">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Salvar e Conectar</button>
+                    </form>
+                    <div id="connection-status" class="connection-status"></div>
+                </div>
+
+                <div class="section">
+                    <h2>Sobre</h2>
+                    <p>Sofia Dashboard v1.0</p>
+                    <p>Monitor de conversas e metricas do assistente Sofia.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>
