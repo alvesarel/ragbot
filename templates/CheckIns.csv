@@ -1,0 +1,4 @@
+DATE,PATIENT_NAME,PHONE,WEEK,SUMMARY,FOLLOW_UP_NEEDED
+2024-12-07 11:15,Maria Silva,5511999998888,1,Patient reported feeling well with no side effects. Adapting to new eating habits.,NO
+2024-12-14 11:20,Maria Silva,5511999998888,2,Mild nausea reported but manageable. Weight loss progress on track.,NO
+2024-12-07 11:30,João Santos,5511988887777,4,Persistent fatigue and appetite changes. Requested to speak with doctor.,YES

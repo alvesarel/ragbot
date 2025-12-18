@@ -1,6 +1,6 @@
 # Google Sheets Templates
 
-These CSV files are templates for the Google Sheets required by Diana (Patient Check-in Agent).
+CSV templates for the Google Sheets required by Diana (Patient Check-in Agent).
 
 ## Setup Instructions
 
@@ -16,12 +16,12 @@ These CSV files are templates for the Google Sheets required by Diana (Patient C
 4. Choose **Replace current sheet**
 5. Rename the sheet tab to `Patients`
 
-### 3. Import CheckInLog Sheet
+### 3. Create CheckIns Sheet
 1. Click the **+** button to add a new sheet
 2. Go to **File → Import**
-3. Upload `CheckInLog.csv`
+3. Upload `CheckIns.csv`
 4. Choose **Insert new sheet(s)**
-5. Rename the sheet tab to `CheckInLog`
+5. Rename the sheet tab to `CheckIns`
 
 ### 4. Get Sheet ID
 Copy the Sheet ID from the URL:
@@ -31,14 +31,14 @@ https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit
 
 ### 5. Update Workflows
 Update the `PATIENT_SHEET_ID` value in:
-- `workflows/diana-patient-checkin.json` (6 occurrences)
-- `workflows/yara-executive-assistant.json` (2 occurrences)
+- `workflows/diana-patient-checkin.json`
+- `workflows/yara-executive-assistant.json`
 
 Search for `your_google_sheet_id_here` and replace with your actual Sheet ID.
 
 ## Sheet Structures
 
-### Patients Sheet
+### Patients Sheet (Master Data)
 | Column | Description | Example |
 |--------|-------------|---------|
 | NAME | Patient full name | Maria Silva |
@@ -49,23 +49,27 @@ Search for `your_google_sheet_id_here` and replace with your actual Sheet ID.
 | CURRENT_DOSE | Tirzepatide dose | 2.5mg |
 | PAYMENT_METHOD | Payment type | PIX, Cartão |
 | LAST_PAYMENT | Last payment date | 2024-12-01 |
-| NOTES | Additional notes | Free text |
+| LAST_CHECKIN | Last check-in date | 2024-12-07 |
 | STATUS | active/completed | active |
 
-### CheckInLog Sheet
+### CheckIns Sheet (Simple Log)
 | Column | Description |
 |--------|-------------|
 | DATE | Check-in timestamp |
 | PATIENT_NAME | Patient name |
 | PHONE | Phone with country code |
-| WEEK_NUMBER | Week of treatment |
-| DOSE_AT_CHECKIN | Current dose |
-| REMAINING_WEEKS | Weeks remaining |
-| MESSAGE_SENT | Message Diana sent |
-| STATUS | sent/response_received |
-| RESPONSE | Patient's response |
-| SIDE_EFFECTS_REPORTED | Detected side effects |
-| FOLLOW_UP_NEEDED | YES/NO |
+| WEEK | Week number of treatment |
+| SUMMARY | AI-generated summary of patient's report |
+| FOLLOW_UP_NEEDED | YES/NO - whether team needs to follow up |
+
+## How It Works
+
+1. **Diana sends weekly check-in** (Saturday 11 AM)
+2. **Patient responds** via WhatsApp (may send multiple messages)
+3. **Diana responds** conversationally using AI
+4. **AI generates summary** of the patient's report
+5. **Single row logged** to CheckIns with: Date, Patient, Week, Summary, Follow-up
+6. **If follow-up needed** → Team alerted via Telegram with full context
 
 ## Treatment Plans
 

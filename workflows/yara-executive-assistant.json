@@ -159,7 +159,7 @@
         "operation": "read",
         "sheetName": {
           "__rl": true,
-          "value": "CheckInLog",
+          "value": "CheckIns",
           "mode": "list"
         },
         "options": {

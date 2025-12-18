@@ -1,3 +1,0 @@
-DATE,PATIENT_NAME,PHONE,WEEK_NUMBER,DOSE_AT_CHECKIN,REMAINING_WEEKS,MESSAGE_SENT,STATUS,RESPONSE,SIDE_EFFECTS_REPORTED,FOLLOW_UP_NEEDED
-2024-12-07 11:00:00,Maria Silva,5511999998888,1,2.5mg,11,Olá Maria! Como você está se sentindo esta semana?,sent,Estou bem obrigada!,,NO
-2024-12-14 11:00:00,Maria Silva,5511999998888,2,2.5mg,10,Olá Maria! Já estamos na segunda semana...,sent,,,NO
