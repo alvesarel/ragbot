@@ -1,48 +1,56 @@
-# Clinic AI Agents - Sofia & Diana
+# Clinic AI Agents - Multi-Agent System
 
-AI-powered WhatsApp assistants for a premium weight loss clinic, built with n8n AI Agent, Claude Haiku 4.5, and RAG.
+AI-powered multi-agent system for a premium weight loss clinic, built with n8n AI Agent, Claude Haiku 4.5, and RAG. Includes three specialized agents: **Sofia** (lead qualification), **Diana** (patient check-ins), and **Yara** (executive assistant).
 
 ## Agents Overview
 
-| Agent | Purpose | Trigger |
+| Agent | Channel | Purpose |
 |-------|---------|---------|
-| **Sofia** | Sales assistant for lead qualification and appointment scheduling | WhatsApp incoming messages |
-| **Diana** | Patient check-in agent for Tirzepatide weekly treatment follow-ups | Scheduled (Saturdays 11 AM) + WhatsApp responses |
+| **Sofia** | WhatsApp | Lead qualification from Meta Ads |
+| **Diana** | WhatsApp | Weekly patient check-ins (Tirzepatide) |
+| **Yara** | Telegram | Executive assistant for management |
 
 ## Architecture
 
 ```
-                           ┌─────────────────────────────────────┐
-                           │         Clinic AI System            │
-                           └─────────────────────────────────────┘
-                                            │
-              ┌─────────────────────────────┴─────────────────────────────┐
-              │                                                           │
-              ▼                                                           ▼
-    ┌─────────────────┐                                         ┌─────────────────┐
-    │      SOFIA      │                                         │      DIANA      │
-    │  Sales Agent    │                                         │  Check-in Agent │
-    └─────────────────┘                                         └─────────────────┘
-              │                                                           │
-    ┌─────────┴─────────┐                                       ┌─────────┴─────────┐
-    │                   │                                       │                   │
-    ▼                   ▼                                       ▼                   ▼
-WhatsApp           Claude Haiku 4.5                       Schedule Trigger   Claude Haiku 4.5
-Trigger            + Memory + RAG                         (Sat 11AM)         + Memory + RAG
-    │                   │                                       │                   │
-    │                   ▼                                       │                   ▼
-    │           Qdrant Vector Store                             │           Google Sheets
-    │           (Knowledge Base)                                │           (Patient Data)
-    │                   │                                       │                   │
-    └───────────┬───────┘                                       └───────────┬───────┘
-                │                                                           │
-                ▼                                                           ▼
-         WhatsApp Reply                                              WhatsApp Reply
-                │                                                           │
-    ┌───────────┼───────────┐                               ┌───────────────┼───────────────┐
-    ▼           ▼           ▼                               ▼               ▼               ▼
-Supabase    Telegram    Handoff                      Google Sheets     Telegram      Treatment
-(Logs)      (Alerts)    (if needed)                   (Check-in Log)   (Renewals)    Complete
+                              ┌─────────────────────────────────────────┐
+                              │            MANAGEMENT TEAM              │
+                              │              (Telegram)                 │
+                              └──────────────────┬──────────────────────┘
+                                                 │
+                                                 ▼
+                              ┌─────────────────────────────────────────┐
+                              │           YARA (Executive)              │
+                              │        Telegram AI Assistant            │
+                              │   - Query patient data from Diana       │
+                              │   - Analytics & pattern recognition     │
+                              │   - Knowledge base access               │
+                              └──────────────────┬──────────────────────┘
+                                                 │
+                    ┌────────────────────────────┼────────────────────────────┐
+                    │                            │                            │
+                    ▼                            ▼                            ▼
+         ┌─────────────────┐          ┌─────────────────┐          ┌─────────────────┐
+         │  Google Sheets  │          │     Qdrant      │          │  Google Sheets  │
+         │   (Patients)    │          │  (Knowledge)    │          │ (Check-in Logs) │
+         └────────┬────────┘          └────────┬────────┘          └────────┬────────┘
+                  │                            │                            │
+                  └────────────────────────────┼────────────────────────────┘
+                                               │
+         ┌─────────────────────────────────────┼─────────────────────────────────────┐
+         │                                     │                                     │
+         ▼                                     │                                     ▼
+┌─────────────────┐                            │                          ┌─────────────────┐
+│     DIANA       │                            │                          │     SOFIA       │
+│ Patient Agent   │◄───────────────────────────┘────────────────────────►│  Lead Agent     │
+│ (Check-ins)     │                                                       │ (Qualification) │
+└────────┬────────┘                                                       └────────┬────────┘
+         │                                                                         │
+         ▼                                                                         ▼
+┌─────────────────┐                                                       ┌─────────────────┐
+│    WhatsApp     │                                                       │    WhatsApp     │
+│   (Patients)    │                                                       │    (Leads)      │
+└─────────────────┘                                                       └─────────────────┘
 ```
 
 ## Tech Stack
@@ -63,16 +71,18 @@ Supabase    Telegram    Handoff                      Google Sheets     Telegram 
 ```
 ragbot/
 ├── workflows/
-│   ├── sofia-assistant.json         # Sofia - Sales AI Agent
-│   ├── sofia-alternative-flow.json  # Sofia - Alternative flow
-│   ├── diana-patient-checkin.json   # Diana - Patient Check-in Agent
-│   └── knowledge-base-setup.json    # RAG ingestion workflow
-├── knowledge-base/
+│   ├── sofia-alternative-flow.json       # Sofia: Lead qualification (WhatsApp)
+│   ├── diana-patient-checkin.json        # Diana: Patient check-ins (WhatsApp)
+│   ├── yara-executive-assistant.json     # Yara: Executive assistant (Telegram)
+│   ├── yara-fetch-patients.json          # Yara: Sub-workflow for patient data
+│   ├── yara-fetch-checkin-logs.json      # Yara: Sub-workflow for check-in logs
+│   └── knowledge-base-setup.json         # RAG ingestion workflow
+├── knowledge-base/                       # RAG documents
 │   ├── institutional/
 │   │   └── about_clinic.md
 │   ├── treatments/
 │   │   ├── methodology.md
-│   │   └── tirzepatide_checkin.md   # Tirzepatide treatment info
+│   │   └── tirzepatide_checkin.md
 │   ├── faq/
 │   │   └── general_questions.md
 │   ├── objection_handling/
@@ -80,17 +90,19 @@ ragbot/
 │   └── compliance/
 │       └── medical_disclaimers.md
 ├── prompts/
-│   ├── system-prompt.md             # Sofia system prompt
-│   └── diana-prompt.md              # Diana system prompt
+│   ├── system-prompt.md                  # Sofia system prompt
+│   ├── diana-prompt.md                   # Diana system prompt
+│   └── yara-prompt.md                    # Yara system prompt
 ├── database/
-│   └── schema.sql                   # Supabase schema (Sofia)
+│   └── schema.sql                        # Supabase schema
 ├── dashboard/
-│   ├── index.html                   # Combined dashboard
+│   ├── index.html                        # Analytics dashboard
 │   ├── app.js
 │   └── styles.css
 └── docs/
-    ├── SETUP.md                     # Sofia setup guide
-    └── PATIENT_CHECKIN_SETUP.md     # Diana setup guide
+    ├── SETUP.md                          # Sofia setup instructions
+    ├── PATIENT_CHECKIN_SETUP.md          # Diana setup instructions
+    └── YARA_SETUP.md                     # Yara setup instructions
 ```
 
 ## Quick Start
@@ -312,6 +324,82 @@ priority: high
 ```
 3. Run Knowledge Base Setup workflow
 4. New content is immediately available to both agents
+
+---
+
+## Yara - Executive Assistant
+
+Yara is a Telegram-based AI assistant for the clinic management team, providing centralized access to all clinic data.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Patient Data Query | Access Diana's patient database |
+| Check-in Analytics | Review check-in history and side effects |
+| Pattern Recognition | Identify trends in treatments |
+| Knowledge Base | Answer questions about clinic protocols |
+| Memory | 20-message conversation context |
+
+### Sample Queries
+
+```
+"Quantos pacientes estao em tratamento?"
+"Qual o status do paciente Maria Silva?"
+"Quais pacientes reportaram efeitos colaterais?"
+"Liste os pacientes com follow-up pendente"
+"Quem precisa de renovacao esta semana?"
+"Gere uma analise dos efeitos colaterais mais frequentes"
+```
+
+### Setup
+
+See [docs/YARA_SETUP.md](docs/YARA_SETUP.md) for complete setup instructions.
+
+### Quick Setup
+
+1. Create Telegram bot via @BotFather
+2. Get your Telegram user ID via @userinfobot
+3. Import sub-workflows first (yara-fetch-patients, yara-fetch-checkin-logs)
+4. Note workflow IDs and add to environment variables
+5. Import main workflow (yara-executive-assistant)
+6. Activate all workflows
+7. Chat with Yara on Telegram!
+
+### Environment Variables (Yara-specific)
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=-your_group_id
+YARA_AUTHORIZED_USER_ID=your_user_id
+YARA_FETCH_PATIENTS_WORKFLOW_ID=workflow_id
+YARA_FETCH_CHECKINS_WORKFLOW_ID=workflow_id
+```
+
+---
+
+## All Agents Summary
+
+### Sofia (Lead Qualification)
+- **Channel**: WhatsApp
+- **Trigger**: Incoming messages from Meta Ads leads
+- **Goal**: Qualify leads and schedule consultations
+- **Handoff**: WhatsApp notification to human support
+- **Memory**: 50 messages
+
+### Diana (Patient Check-ins)
+- **Channel**: WhatsApp
+- **Trigger**: Weekly schedule (Saturdays 11 AM)
+- **Goal**: Check patient well-being, track treatment progress
+- **Handoff**: Telegram notification for follow-ups
+- **Memory**: 10 messages per patient
+
+### Yara (Executive Assistant)
+- **Channel**: Telegram
+- **Trigger**: Direct messages from authorized users
+- **Goal**: Provide data access and analytics to management
+- **Access**: Patient data, check-in logs, knowledge base
+- **Memory**: 20 messages per session
 
 ## License
 

@@ -1,0 +1,597 @@
+{
+  "name": "Yara - Executive Assistant AI Agent",
+  "meta": {
+    "instanceId": "yara-executive-assistant-telegram",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "position": [220, 340],
+      "webhookId": "yara-telegram-webhook",
+      "parameters": {
+        "updates": ["message"]
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "check-authorized-user",
+      "name": "Check Authorized User",
+      "type": "n8n-nodes-base.if",
+      "position": [440, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.message.chat.id.toString() }}",
+              "rightValue": "={{ $env.TELEGRAM_CHAT_ID }}"
+            },
+            {
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.message.from.id.toString() }}",
+              "rightValue": "={{ $env.YARA_AUTHORIZED_USER_ID }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "handle-message-type",
+      "name": "Handle Message Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [660, 240],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Text Message",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists"
+                    },
+                    "leftValue": "={{ $json.message.text }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Unsupported",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "notExists"
+                    },
+                    "leftValue": "={{ $json.message.text }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "prepare-context",
+      "name": "Prepare Context",
+      "type": "n8n-nodes-base.code",
+      "position": [880, 160],
+      "parameters": {
+        "jsCode": "// Prepare context for Yara AI Agent\nconst message = $input.first().json.message;\n\nconst userName = message.from?.first_name || 'Usuario';\nconst userLastName = message.from?.last_name || '';\nconst fullName = `${userName} ${userLastName}`.trim();\nconst chatId = message.chat.id;\nconst messageText = message.text || '';\nconst messageDate = new Date(message.date * 1000).toISOString();\n\n// Check for commands\nconst isCommand = messageText.startsWith('/');\nlet command = null;\nlet commandArgs = '';\n\nif (isCommand) {\n  const parts = messageText.split(' ');\n  command = parts[0].substring(1).toLowerCase();\n  commandArgs = parts.slice(1).join(' ');\n}\n\nreturn {\n  json: {\n    userMessage: messageText,\n    userName: fullName,\n    userId: message.from?.id,\n    chatId: chatId,\n    messageDate: messageDate,\n    isCommand: isCommand,\n    command: command,\n    commandArgs: commandArgs\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "yara-ai-agent",
+      "name": "Yara AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1100, 160],
+      "parameters": {
+        "text": "Usuario {{ $json.userName }} perguntou:\n\n{{ $json.userMessage }}\n\nData/hora da mensagem: {{ $json.messageDate }}",
+        "options": {
+          "systemMessage": "# Yara - Assistente Executiva da Clinica\n\nVoce e **Yara**, assistente executiva virtual de uma clinica premium de medicina do emagrecimento. Voce se comunica com a equipe de gestao via Telegram e tem acesso completo aos dados operacionais da clinica.\n\n## Sua Identidade\n- **Nome:** Yara\n- **Funcao:** Assistente executiva de gestao e analise\n- **Canal:** Telegram (comunicacao com gestao/equipe)\n- **Diferencial:** Acesso centralizado a todos os dados da clinica\n\n## Suas Responsabilidades\n\n### 1. Consulta de Dados de Pacientes (Diana)\nVoce pode acessar informacoes sobre:\n- Status de tratamento de pacientes\n- Semanas restantes de tratamento\n- Historico de check-ins\n- Efeitos colaterais reportados\n- Necessidades de follow-up\n- Renovacoes pendentes\n\n### 2. Analise e Insights\nVoce deve ser capaz de:\n- Identificar padroes nos dados\n- Detectar recorrencias (efeitos colaterais frequentes)\n- Sugerir pontos de melhoria operacional\n- Gerar resumos executivos\n- Alertar sobre situacoes que requerem atencao\n\n## Ferramentas Disponiveis\n\n### `query_patients`\nBusca informacoes de TODOS os pacientes ou de um paciente especifico no Google Sheets.\n**Use quando:** Perguntas sobre pacientes, status de tratamento, doses, semanas restantes.\n**Parametros:** \n- search_type: 'all' para todos os pacientes, 'specific' para buscar por nome\n- patient_name: nome do paciente (apenas se search_type = 'specific')\n\n### `query_checkin_logs`\nBusca historico de check-ins e respostas de pacientes.\n**Use quando:** Perguntas sobre historico de interacoes, efeitos colaterais, follow-ups.\n**Parametros:**\n- search_type: 'all' para todos, 'patient' para buscar por paciente, 'followup' para follow-ups pendentes\n- patient_name: nome do paciente (se buscar por paciente)\n\n### `query_knowledge_base`\nBusca informacoes na base de conhecimento da clinica (tratamentos, metodologia, FAQ).\n**Use quando:** Perguntas sobre protocolos, tratamentos, informacoes institucionais.\n\n## Comunicacao\n\n### Estilo\n- **Profissional e executivo** - Voce fala com gestores e equipe\n- **Direto e objetivo** - Informacoes claras e acionaveis\n- **Analitico** - Sempre que possivel, adicione insights\n- **Proativo** - Sugira acoes quando identificar oportunidades\n\n### Formato (Telegram Markdown)\n- Use *negrito* para destacar informacoes importantes\n- Use listas para organizar dados\n- Inclua metricas quando relevante\n- Sempre indique a fonte dos dados\n- Maximo 1-2 emojis por mensagem quando apropriado\n\n### Idioma\n- Portugues brasileiro\n- Linguagem profissional/empresarial\n\n## Tipos de Consultas\n\n### Sobre Pacientes\n- \"Qual o status do paciente [NOME]?\"\n- \"Quantos pacientes estao em tratamento?\"\n- \"Quem precisa de renovacao esta semana?\"\n- \"Quais pacientes reportaram efeitos colaterais?\"\n- \"Liste os pacientes com follow-up pendente\"\n\n### Analises e Padroes\n- \"Quais sao os efeitos colaterais mais frequentes?\"\n- \"Identifique padroes nos tratamentos\"\n- \"O que podemos melhorar no atendimento?\"\n- \"Gere um resumo semanal\"\n\n### Sobre a Clinica\n- \"Quais tratamentos oferecemos?\"\n- \"Qual a metodologia da clinica?\"\n- \"Quais sao os planos de tratamento disponiveis?\"\n\n## Capacidades Analiticas\n\nQuando receber dados, analise automaticamente para identificar:\n- **Efeitos colaterais recorrentes:** Quais sao mais frequentes e em quais doses\n- **Padroes de desistencia:** Em qual semana pacientes tendem a parar\n- **Taxa de renovacao:** Percentual de pacientes que renovam\n- **Pacientes em risco:** Baixa adesao, muitos efeitos colaterais\n\n## Regras Importantes\n\n1. **Privacidade:** Dados de pacientes sao confidenciais\n2. **Precisao:** SEMPRE use as ferramentas para buscar dados reais\n3. **Proatividade:** Quando identificar algo relevante, mencione\n4. **Fontes:** Sempre indique de onde veio a informacao\n\n## Primeira Mensagem\n\nSe usuario enviar /start ou saudacao inicial:\n\n\"Ola! Sou a Yara, sua assistente executiva da clinica.\n\nTenho acesso aos dados de pacientes (Diana) e base de conhecimento da clinica.\n\nPosso ajudar com:\n- Status de pacientes e tratamentos\n- Historico de check-ins\n- Analises e identificacao de padroes\n- Qualquer informacao sobre a clinica\n\nComo posso ajudar?\"\n\n## Tratamento de Erros\n\nSe nao encontrar dados:\n\"Nao encontrei registros para essa consulta. Verifique se os dados estao corretos.\"\n\nSe pergunta fora do escopo:\n\"Esta solicitacao esta fora do meu escopo. Posso ajudar com informacoes sobre pacientes, analises operacionais e dados da clinica.\""
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model",
+      "name": "Claude Haiku 4.5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1100, 380],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 2048,
+          "temperature": 0.5
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "window-buffer-memory",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [1240, 380],
+      "parameters": {
+        "sessionKey": "=yara-telegram-{{ $json.chatId }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 20
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "tool-query-patients",
+      "name": "Query Patients Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "position": [1380, 380],
+      "parameters": {
+        "name": "query_patients",
+        "description": "Query patient data from the clinic's patient database (Google Sheets managed by Diana). Returns information about patients including treatment status, doses, remaining weeks, payment info, notes, and analytics. Use search_type='all' for all patients or search_type='specific' with patient_name to search for a specific patient.",
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $env.YARA_FETCH_PATIENTS_WORKFLOW_ID }}",
+          "mode": "id"
+        },
+        "fields": {
+          "values": [
+            {
+              "name": "search_type",
+              "description": "Type of search: 'all' for all patients, 'specific' for one patient by name",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "patient_name",
+              "description": "Name of the patient to search for (required only if search_type is 'specific')",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "tool-query-checkins",
+      "name": "Query Check-in Logs Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "position": [1520, 380],
+      "parameters": {
+        "name": "query_checkin_logs",
+        "description": "Query check-in logs from Diana's system. Contains history of all patient check-ins, responses, side effects reported, follow-up needs, and analytics including side effect frequency analysis. Use search_type='all' for all logs, search_type='patient' with patient_name for specific patient, or search_type='followup' for pending follow-ups.",
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $env.YARA_FETCH_CHECKINS_WORKFLOW_ID }}",
+          "mode": "id"
+        },
+        "fields": {
+          "values": [
+            {
+              "name": "search_type",
+              "description": "Type of search: 'all' for all logs, 'patient' for specific patient logs, 'followup' for pending follow-ups",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "patient_name",
+              "description": "Name of the patient to search logs for (used when search_type is 'patient')",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "tool-knowledge-base",
+      "name": "Knowledge Base RAG Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [1660, 380],
+      "parameters": {
+        "name": "query_knowledge_base",
+        "description": "Search the clinic's knowledge base for information about treatments (Tirzepatide, Mounjaro), methodology, FAQ, pricing policies, compliance (LGPD), and institutional information. Use for any questions about the clinic's services, protocols, or policies.",
+        "topK": 4
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-vector-store",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [1660, 560],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-openai",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [1800, 560],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-rag",
+      "name": "OpenAI Chat Model (RAG)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1940, 560],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-telegram-response",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.telegram",
+      "position": [1340, 160],
+      "parameters": {
+        "text": "={{ $json.output }}",
+        "chatId": "={{ $('Prepare Context').item.json.chatId }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "reply-unauthorized",
+      "name": "Reply Unauthorized",
+      "type": "n8n-nodes-base.telegram",
+      "position": [660, 440],
+      "parameters": {
+        "text": "Desculpe, voce nao tem autorizacao para usar este bot. Entre em contato com o administrador.",
+        "chatId": "={{ $json.message.chat.id }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "reply-unsupported",
+      "name": "Reply Unsupported Type",
+      "type": "n8n-nodes-base.telegram",
+      "position": [880, 340],
+      "parameters": {
+        "text": "No momento, consigo processar apenas mensagens de texto. Por favor, envie sua pergunta em texto.",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "sticky-note-overview",
+      "name": "Workflow Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 60],
+      "parameters": {
+        "color": 7,
+        "width": 600,
+        "height": 260,
+        "content": "## Yara - Executive Assistant AI Agent\n\nYara is a Telegram-based AI assistant for clinic management that:\n\n### Features:\n- **Telegram Communication** - Chat with management team\n- **Patient Data Access** - Query Diana's patient database\n- **Check-in History** - Access check-in logs and side effects\n- **Knowledge Base** - RAG access to clinic information\n- **Analytics** - Pattern identification and insights\n- **Memory** - 20-message conversation context\n\n### Tools Available:\n1. `query_patients` - Patient data from Google Sheets\n2. `query_checkin_logs` - Check-in history and follow-ups\n3. `query_knowledge_base` - Clinic knowledge (treatments, FAQ)\n\n### Required Credentials:\nTelegram Bot, Anthropic, OpenAI, Qdrant, Google Sheets OAuth"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-tools",
+      "name": "Tools Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1280, 700],
+      "parameters": {
+        "color": 5,
+        "width": 400,
+        "height": 140,
+        "content": "### AI Agent Tools\n\n**query_patients** - Access patient treatment data\n**query_checkin_logs** - Access check-in history\n**query_knowledge_base** - RAG for clinic info\n\nTools enable Yara to answer questions about patients, treatments, and provide analytical insights."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-auth",
+      "name": "Authorization Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [340, 540],
+      "parameters": {
+        "color": 3,
+        "width": 320,
+        "height": 120,
+        "content": "### Authorization Check\n\nOnly authorized users can interact with Yara:\n- TELEGRAM_CHAT_ID (group/channel)\n- YARA_AUTHORIZED_USER_ID (individual user)"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Authorized User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Authorized User": {
+      "main": [
+        [
+          {
+            "node": "Handle Message Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Message Type": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yara AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Patients Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Check-in Logs Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (RAG)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Yara",
+      "id": "20"
+    },
+    {
+      "name": "Telegram",
+      "id": "21"
+    },
+    {
+      "name": "AI Agent",
+      "id": "3"
+    },
+    {
+      "name": "RAG",
+      "id": "4"
+    },
+    {
+      "name": "Executive Assistant",
+      "id": "22"
+    },
+    {
+      "name": "Analytics",
+      "id": "23"
+    }
+  ],
+  "pinData": {}
+}
