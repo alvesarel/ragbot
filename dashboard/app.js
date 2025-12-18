@@ -1,4 +1,4 @@
-// Sofia Dashboard - Application Logic
+// Clinic AI Dashboard - Application Logic (Sofia & Diana)
 
 let supabase = null;
 let currentFilter = 'all';
@@ -367,12 +367,15 @@ function setupNavigation() {
 
             // Update title
             const titles = {
-                overview: 'Visao Geral',
-                conversations: 'Conversas',
-                analytics: 'Metricas',
-                settings: 'Configuracoes'
+                'overview': 'Sofia - Visao Geral',
+                'conversations': 'Sofia - Conversas',
+                'analytics': 'Sofia - Metricas',
+                'diana-overview': 'Diana - Pacientes',
+                'diana-checkins': 'Diana - Check-ins',
+                'diana-renewals': 'Diana - Renovacoes',
+                'settings': 'Configuracoes'
             };
-            document.getElementById('page-title').textContent = titles[view];
+            document.getElementById('page-title').textContent = titles[view] || view;
         });
     });
 }

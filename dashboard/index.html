@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sofia Dashboard</title>
+    <title>Clinic AI Dashboard - Sofia & Diana</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,30 +14,58 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
-                <span class="logo-icon">💚</span>
-                <span class="logo-text">Sofia</span>
+                <span class="logo-icon">🏥</span>
+                <span class="logo-text">Clinic AI</span>
             </div>
             <nav class="nav">
-                <a href="#" class="nav-item active" data-view="overview">
-                    <span class="nav-icon">📊</span>
-                    <span>Visao Geral</span>
-                </a>
-                <a href="#" class="nav-item" data-view="conversations">
-                    <span class="nav-icon">💬</span>
-                    <span>Conversas</span>
-                </a>
-                <a href="#" class="nav-item" data-view="analytics">
-                    <span class="nav-icon">📈</span>
-                    <span>Metricas</span>
-                </a>
-                <a href="#" class="nav-item" data-view="settings">
-                    <span class="nav-icon">⚙️</span>
-                    <span>Configuracoes</span>
-                </a>
+                <div class="nav-section">
+                    <span class="nav-section-title">Sofia - Vendas</span>
+                    <a href="#" class="nav-item active" data-view="overview">
+                        <span class="nav-icon">📊</span>
+                        <span>Visao Geral</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="conversations">
+                        <span class="nav-icon">💬</span>
+                        <span>Conversas</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="analytics">
+                        <span class="nav-icon">📈</span>
+                        <span>Metricas</span>
+                    </a>
+                </div>
+                <div class="nav-section">
+                    <span class="nav-section-title">Diana - Check-ins</span>
+                    <a href="#" class="nav-item" data-view="diana-overview">
+                        <span class="nav-icon">💊</span>
+                        <span>Pacientes</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="diana-checkins">
+                        <span class="nav-icon">📋</span>
+                        <span>Check-ins</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="diana-renewals">
+                        <span class="nav-icon">🔔</span>
+                        <span>Renovacoes</span>
+                    </a>
+                </div>
+                <div class="nav-section">
+                    <a href="#" class="nav-item" data-view="settings">
+                        <span class="nav-icon">⚙️</span>
+                        <span>Configuracoes</span>
+                    </a>
+                </div>
             </nav>
             <div class="sidebar-footer">
-                <div class="status-indicator online"></div>
-                <span>Sofia Online</span>
+                <div class="agent-status">
+                    <div class="status-row">
+                        <div class="status-indicator online"></div>
+                        <span>Sofia Online</span>
+                    </div>
+                    <div class="status-row">
+                        <div class="status-indicator online"></div>
+                        <span>Diana Online</span>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -54,7 +82,7 @@
                 </div>
             </header>
 
-            <!-- Overview View -->
+            <!-- Sofia Overview View -->
             <div id="view-overview" class="view active">
                 <!-- Stats Cards -->
                 <div class="stats-grid">
@@ -199,10 +227,217 @@
                 </div>
             </div>
 
+            <!-- Diana Overview View -->
+            <div id="view-diana-overview" class="view">
+                <div class="agent-header">
+                    <h2>Diana - Patient Check-in Agent</h2>
+                    <p>Tirzepatide weekly treatment follow-ups</p>
+                </div>
+
+                <!-- Diana Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="diana-total-patients">--</span>
+                            <span class="stat-label">Total Pacientes</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="diana-active-patients">--</span>
+                            <span class="stat-label">Em Tratamento</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="diana-renewals-needed">--</span>
+                            <span class="stat-label">Renovacoes Pendentes</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏁</div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="diana-completed">--</span>
+                            <span class="stat-label">Tratamentos Concluidos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patient List -->
+                <div class="section">
+                    <h2>Pacientes Ativos</h2>
+                    <p class="section-note">Data sourced from Google Sheets (PATIENT_SHEET_ID)</p>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Telefone</th>
+                                    <th>Dose Atual</th>
+                                    <th>Semanas Restantes</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="diana-patients-list">
+                                <tr>
+                                    <td colspan="5" class="info-message">
+                                        Configure Google Sheets integration to view patient data.
+                                        <br><small>See docs/PATIENT_CHECKIN_SETUP.md</small>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Treatment Plans -->
+                <div class="section">
+                    <h2>Planos de Tratamento</h2>
+                    <div class="treatment-plans">
+                        <div class="plan-card">
+                            <div class="plan-duration">4 semanas</div>
+                            <div class="plan-name">Starter</div>
+                            <div class="plan-desc">Avaliacao inicial</div>
+                        </div>
+                        <div class="plan-card">
+                            <div class="plan-duration">12 semanas</div>
+                            <div class="plan-name">Standard</div>
+                            <div class="plan-desc">Plano recomendado</div>
+                        </div>
+                        <div class="plan-card">
+                            <div class="plan-duration">16 semanas</div>
+                            <div class="plan-name">Extended</div>
+                            <div class="plan-desc">Melhores resultados</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diana Check-ins View -->
+            <div id="view-diana-checkins" class="view">
+                <div class="section">
+                    <h2>Historico de Check-ins</h2>
+                    <p class="section-note">Weekly check-ins sent every Saturday at 11 AM</p>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Paciente</th>
+                                    <th>Semana</th>
+                                    <th>Dose</th>
+                                    <th>Status</th>
+                                    <th>Efeitos Colaterais</th>
+                                    <th>Follow-up</th>
+                                </tr>
+                            </thead>
+                            <tbody id="diana-checkins-list">
+                                <tr>
+                                    <td colspan="7" class="info-message">
+                                        Check-in logs are stored in Google Sheets (CheckInLog sheet).
+                                        <br><small>Data will appear after first check-in cycle runs.</small>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Side Effects Tracking -->
+                <div class="section">
+                    <h2>Efeitos Colaterais Reportados</h2>
+                    <div class="side-effects-grid">
+                        <div class="side-effect-card">
+                            <div class="side-effect-name">Nausea</div>
+                            <div class="side-effect-count" id="se-nausea">--</div>
+                        </div>
+                        <div class="side-effect-card">
+                            <div class="side-effect-name">Fadiga</div>
+                            <div class="side-effect-count" id="se-fadiga">--</div>
+                        </div>
+                        <div class="side-effect-card">
+                            <div class="side-effect-name">Dor</div>
+                            <div class="side-effect-count" id="se-dor">--</div>
+                        </div>
+                        <div class="side-effect-card">
+                            <div class="side-effect-name">Outros</div>
+                            <div class="side-effect-count" id="se-outros">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diana Renewals View -->
+            <div id="view-diana-renewals" class="view">
+                <div class="section">
+                    <h2>Renovacoes Pendentes</h2>
+                    <p class="section-note">Patients with 2 weeks or less remaining in treatment</p>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Paciente</th>
+                                    <th>Telefone</th>
+                                    <th>Plano Atual</th>
+                                    <th>Semanas Restantes</th>
+                                    <th>Ultima Dose</th>
+                                    <th>Metodo Pagamento</th>
+                                    <th>Acao</th>
+                                </tr>
+                            </thead>
+                            <tbody id="diana-renewals-list">
+                                <tr>
+                                    <td colspan="7" class="info-message">
+                                        Renewal reminders are sent at 2 weeks and 1 week remaining.
+                                        <br><small>Team is notified via Telegram for follow-up.</small>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Renewal Flow Info -->
+                <div class="section">
+                    <h2>Fluxo de Renovacao</h2>
+                    <div class="flow-diagram">
+                        <div class="flow-step">
+                            <div class="flow-step-number">1</div>
+                            <div class="flow-step-content">
+                                <strong>2 Semanas Restantes</strong>
+                                <p>Diana envia lembrete e pergunta sobre renovacao</p>
+                                <p class="flow-step-action">Equipe notificada via Telegram</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-step-number">2</div>
+                            <div class="flow-step-content">
+                                <strong>1 Semana Restante</strong>
+                                <p>Ultima semana - Diana pergunta sobre experiencia e renovacao</p>
+                                <p class="flow-step-action">Tratamento marcado como concluido</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-step-number">3</div>
+                            <div class="flow-step-content">
+                                <strong>Handoff para Equipe</strong>
+                                <p>Telegram com info completa do paciente</p>
+                                <p class="flow-step-action">Equipe contata para renovacao</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Settings View -->
             <div id="view-settings" class="view">
                 <div class="section">
-                    <h2>Configuracoes do Supabase</h2>
+                    <h2>Configuracoes do Supabase (Sofia)</h2>
                     <form id="settings-form" class="settings-form">
                         <div class="form-group">
                             <label for="supabase-url">Supabase URL</label>
@@ -218,9 +453,39 @@
                 </div>
 
                 <div class="section">
+                    <h2>Configuracoes do Google Sheets (Diana)</h2>
+                    <div class="settings-info">
+                        <p>Diana usa Google Sheets para armazenar dados de pacientes.</p>
+                        <p><strong>Sheet ID:</strong> <code>PATIENT_SHEET_ID</code> (env variable)</p>
+                        <p><strong>Sheets necessarias:</strong></p>
+                        <ul>
+                            <li><code>Patients</code> - Dados dos pacientes</li>
+                            <li><code>CheckInLog</code> - Historico de check-ins</li>
+                        </ul>
+                        <p>Veja <a href="#">docs/PATIENT_CHECKIN_SETUP.md</a> para instrucoes completas.</p>
+                    </div>
+                </div>
+
+                <div class="section">
                     <h2>Sobre</h2>
-                    <p>Sofia Dashboard v1.0</p>
-                    <p>Monitor de conversas e metricas do assistente Sofia.</p>
+                    <div class="about-info">
+                        <h3>Sofia - Sales Assistant</h3>
+                        <p>WhatsApp assistant for clinic lead qualification and appointment scheduling.</p>
+                        <ul>
+                            <li>Claude Haiku 4.5 powered</li>
+                            <li>RAG with Qdrant knowledge base</li>
+                            <li>Window buffer memory (20 messages)</li>
+                        </ul>
+
+                        <h3>Diana - Patient Check-in Agent</h3>
+                        <p>Weekly check-in automation for Tirzepatide treatment patients.</p>
+                        <ul>
+                            <li>Claude Haiku 4.5 powered</li>
+                            <li>Google Sheets integration</li>
+                            <li>Automated renewal reminders</li>
+                            <li>Side effect detection</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </main>
