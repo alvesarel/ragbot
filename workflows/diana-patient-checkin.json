@@ -112,13 +112,13 @@
     },
     {
       "id": "haiku-model-checkin",
-      "name": "Claude Haiku 4.5",
+      "name": "Claude Haiku 4.5 (Check-in)",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "position": [1100, 560],
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "claude-haiku-4-5-20241022",
+          "value": "claude-haiku-4-5-20251001",
           "mode": "list"
         },
         "options": {
@@ -325,7 +325,7 @@
         "rules": {
           "values": [
             {
-              "outputKey": "Needs Renewal Handoff",
+              "outputKey": "Last Week - Complete",
               "conditions": {
                 "options": {
                   "version": 2,
@@ -340,7 +340,29 @@
                       "type": "boolean",
                       "operation": "true"
                     },
-                    "leftValue": "={{ $('Prepare Patient Context').item.json.needsRenewalReminder }}"
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isLastWeek }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Two Weeks - Notify",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isTwoWeeksRemaining }}"
                   }
                 ]
               },
@@ -412,12 +434,32 @@
       "typeVersion": 4.5
     },
     {
-      "id": "notify-team-renewal",
-      "name": "Notify Team - Renewal Handoff",
+      "id": "notify-team-final-week",
+      "name": "Notify Team - Final Week",
       "type": "n8n-nodes-base.telegram",
-      "position": [2440, 240],
+      "position": [2440, 180],
       "parameters": {
-        "text": "=**Treatment Renewal Handoff**\n\n{{ $('Prepare Patient Context').item.json.isLastWeek ? 'FINAL WEEK' : '2 WEEKS REMAINING' }}\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCurrent Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nRemaining: {{ $('Prepare Patient Context').item.json.remainingWeeks }} week(s)\nCurrent Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Required:**\nContact patient to discuss renewal options.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
+        "text": "=**TREATMENT COMPLETED - Final Week**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCompleted Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nFinal Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Required:**\nContact patient to discuss renewal options.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "notify-team-two-weeks",
+      "name": "Notify Team - 2 Weeks Remaining",
+      "type": "n8n-nodes-base.telegram",
+      "position": [2220, 420],
+      "parameters": {
+        "text": "=**Renewal Reminder - 2 Weeks Remaining**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCurrent Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nRemaining: 2 weeks (after this check-in: 1 week)\nCurrent Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Suggested:**\nReach out to discuss renewal options before treatment ends.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
         "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "additionalFields": {
           "parse_mode": "Markdown"
@@ -603,7 +645,7 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "claude-haiku-4-5-20241022",
+          "value": "claude-haiku-4-5-20251001",
           "mode": "list"
         },
         "options": {
@@ -877,7 +919,7 @@
         "color": 7,
         "width": 600,
         "height": 260,
-        "content": "## Diana - Patient Check-in AI Agent\n\nDiana is an AI assistant that manages weekly check-ins for patients on Tirzepatide (Mounjaro) treatment plans.\n\n### Features:\n- **Scheduled Weekly Check-ins** - Sends personalized messages every Saturday at 11 AM\n- **Google Sheets Integration** - Reads patient data and logs all interactions\n- **AI-Powered Responses** - Claude Haiku 4.5 handles conversations (no emojis)\n- **Memory** - Remembers conversation context per patient\n- **Side Effect Detection** - Analyzes responses and flags concerns\n- **Treatment Tracking** - Deducts remaining weeks\n- **Renewal Reminders** - Alerts at 2 weeks and 1 week remaining\n- **Team Handoff** - Telegram alerts with full patient info for renewal\n\n### Treatment Plans: 4, 12, or 16 weeks\n\n### Required Setup:\n1. Configure Google Sheets credentials\n2. Set PATIENT_SHEET_ID environment variable\n3. Create Patients and CheckInLog sheets"
+        "content": "## Diana - Patient Check-in AI Agent\n\nDiana is an AI assistant that manages weekly check-ins for patients on Tirzepatide (Mounjaro) treatment plans.\n\n### Features:\n- **Scheduled Weekly Check-ins** - Saturdays at 11 AM\n- **Google Sheets Integration** - Patient data and interaction logs\n- **AI-Powered (Claude Haiku 4.5)** - Professional, no emojis\n- **Memory** - 10-message context per patient\n- **Side Effect Detection** - Flags concerns for follow-up\n- **Treatment Tracking** - Auto-deducts remaining weeks\n- **Renewal Flow:**\n  - 2 weeks remaining → Team notified for outreach\n  - Last week → Mark complete + Team notified\n- **Team Handoff** - Telegram alerts with full patient info\n\n### Treatment Plans: 4, 12, or 16 weeks\n\n### Required Credentials:\n- Google Sheets OAuth, WhatsApp Business, Anthropic, OpenAI, Qdrant, Telegram"
       },
       "typeVersion": 1
     },
@@ -964,7 +1006,7 @@
         ]
       ]
     },
-    "Claude Haiku 4.5": {
+    "Claude Haiku 4.5 (Check-in)": {
       "ai_languageModel": [
         [
           {
@@ -1072,6 +1114,13 @@
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Notify Team - 2 Weeks Remaining",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
@@ -1079,7 +1128,7 @@
       "main": [
         [
           {
-            "node": "Notify Team - Renewal Handoff",
+            "node": "Notify Team - Final Week",
             "type": "main",
             "index": 0
           }
