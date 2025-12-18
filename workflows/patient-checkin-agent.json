@@ -16,8 +16,8 @@
             {
               "field": "weeks",
               "weeksInterval": 1,
-              "triggerAtDay": ["monday"],
-              "triggerAtHour": 9
+              "triggerAtDay": ["saturday"],
+              "triggerAtHour": 11
             }
           ]
         }
@@ -92,7 +92,7 @@
       "type": "n8n-nodes-base.code",
       "position": [880, 340],
       "parameters": {
-        "jsCode": "// Prepare patient context for AI agent\nconst patient = $input.first().json;\n\n// Parse dates\nconst startDate = new Date(patient.STARTING_DATE);\nconst today = new Date();\nconst weekNumber = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;\n\n// Check if this is final week\nconst remainingWeeks = parseInt(patient.REMAINING_WEEKS);\nconst isLastWeek = remainingWeeks === 1;\nconst isExpiringToday = remainingWeeks === 0;\n\n// Format phone number for WhatsApp\nlet phone = patient.PHONE.toString().replace(/\\D/g, '');\nif (!phone.startsWith('55')) {\n  phone = '55' + phone;\n}\n\nreturn {\n  json: {\n    patientName: patient.NAME,\n    phone: phone,\n    currentDose: patient.CURRENT_DOSE,\n    remainingWeeks: remainingWeeks,\n    totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n    weekNumber: weekNumber,\n    startDate: patient.STARTING_DATE,\n    paymentMethod: patient.PAYMENT_METHOD,\n    lastPayment: patient.LAST_PAYMENT,\n    notes: patient.NOTES || '',\n    isLastWeek: isLastWeek,\n    isExpiringToday: isExpiringToday,\n    rowNumber: patient._rowNumber || patient.row_number\n  }\n};"
+        "jsCode": "// Prepare patient context for AI agent\nconst patient = $input.first().json;\n\n// Parse dates\nconst startDate = new Date(patient.STARTING_DATE);\nconst today = new Date();\nconst weekNumber = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;\n\n// Check treatment status\nconst remainingWeeks = parseInt(patient.REMAINING_WEEKS);\nconst isTwoWeeksRemaining = remainingWeeks === 2;\nconst isLastWeek = remainingWeeks === 1;\nconst needsRenewalReminder = isTwoWeeksRemaining || isLastWeek;\n\n// Format phone number for WhatsApp\nlet phone = patient.PHONE.toString().replace(/\\D/g, '');\nif (!phone.startsWith('55')) {\n  phone = '55' + phone;\n}\n\nreturn {\n  json: {\n    patientName: patient.NAME,\n    phone: phone,\n    currentDose: patient.CURRENT_DOSE,\n    remainingWeeks: remainingWeeks,\n    totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n    weekNumber: weekNumber,\n    startDate: patient.STARTING_DATE,\n    paymentMethod: patient.PAYMENT_METHOD,\n    lastPayment: patient.LAST_PAYMENT,\n    notes: patient.NOTES || '',\n    isTwoWeeksRemaining: isTwoWeeksRemaining,\n    isLastWeek: isLastWeek,\n    needsRenewalReminder: needsRenewalReminder,\n    rowNumber: patient._rowNumber || patient.row_number\n  }\n};"
       },
       "typeVersion": 2
     },
@@ -102,9 +102,9 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "position": [1100, 340],
       "parameters": {
-        "text": "Generate a personalized weekly check-in message for this patient:\n\n**Patient Name:** {{ $json.patientName }}\n**Current Week:** {{ $json.weekNumber }} of {{ $json.totalWeeks }}\n**Remaining Weeks:** {{ $json.remainingWeeks }}\n**Current Dose:** {{ $json.currentDose }}\n**Is Last Week:** {{ $json.isLastWeek }}\n**Previous Notes:** {{ $json.notes }}\n\nGenerate a warm, professional WhatsApp check-in message in Portuguese (Brazil). Include:\n1. Greeting with their name\n2. Reminder of their current Tirzepatide dose ({{ $json.currentDose }})\n3. How many weeks remaining in their treatment ({{ $json.remainingWeeks }})\n4. Ask how they are feeling this week\n5. Ask about any side effects (nausea, fatigue, injection site reactions)\n6. Ask if they need anything or have questions\n\nIf this is their LAST WEEK ({{ $json.isLastWeek }}), also:\n- Congratulate them on completing the treatment\n- Ask about their experience\n- Mention that the team will be in touch about renewal options",
+        "text": "Generate a personalized weekly check-in message for this patient:\n\n**Patient Name:** {{ $json.patientName }}\n**Current Week:** {{ $json.weekNumber }} of {{ $json.totalWeeks }}\n**Remaining Weeks:** {{ $json.remainingWeeks }}\n**Current Dose:** {{ $json.currentDose }}\n**Is Two Weeks Remaining:** {{ $json.isTwoWeeksRemaining }}\n**Is Last Week:** {{ $json.isLastWeek }}\n**Needs Renewal Reminder:** {{ $json.needsRenewalReminder }}\n**Previous Notes:** {{ $json.notes }}\n\nGenerate a warm, professional WhatsApp check-in message in Portuguese (Brazil). Include:\n1. Greeting with their name\n2. Reminder of their current Tirzepatide dose ({{ $json.currentDose }})\n3. How many weeks remaining in their treatment ({{ $json.remainingWeeks }})\n4. Ask how they are feeling this week\n5. Ask about any side effects (nausea, fatigue, injection site reactions)\n6. Ask if they need anything or have questions\n\nIf TWO WEEKS REMAINING ({{ $json.isTwoWeeksRemaining }}):\n- Remind them their treatment plan is nearing completion\n- Ask if they would like to discuss renewal options\n- Mention the team will reach out to discuss next steps\n\nIf LAST WEEK ({{ $json.isLastWeek }}):\n- This is their final week of treatment\n- Ask about their experience and results\n- Ask if they wish to renew their treatment plan\n- Inform them the team will be in touch to discuss renewal",
         "options": {
-          "systemMessage": "You are a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Role\n- Send personalized weekly check-in messages via WhatsApp\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese\n- Keep messages concise (max 3-4 short paragraphs)\n- Use max 1-2 emojis per message\n\n## Message Guidelines\n- Always address patient by name\n- Always mention their current dose clearly\n- Always state remaining weeks in treatment\n- Ask open-ended questions about well-being\n- Encourage them to report any side effects\n- Remind them the medical team is available for questions\n\n## Common Tirzepatide Side Effects to Ask About\n- Nausea or stomach discomfort\n- Fatigue or tiredness\n- Injection site reactions (redness, itching)\n- Changes in appetite\n- Constipation or diarrhea\n\n## When Treatment is Ending\n- If REMAINING_WEEKS is 1 (last week), include congratulations and mention renewal options\n- If REMAINING_WEEKS is 0, alert them treatment has ended and team will contact them\n\n## IMPORTANT\n- Never provide medical advice\n- Always encourage contacting the doctor for concerns\n- Be supportive of their weight loss journey\n- Reference the knowledge base for accurate treatment information"
+          "systemMessage": "You are a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Role\n- Send personalized weekly check-in messages via WhatsApp\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese\n- Keep messages concise (max 3-4 short paragraphs)\n- DO NOT use emojis in your messages\n\n## Message Guidelines\n- Always address patient by name\n- Always mention their current dose clearly\n- Always state remaining weeks in treatment\n- Ask open-ended questions about well-being\n- Encourage them to report any side effects\n- Remind them the medical team is available for questions\n\n## Treatment Plans Available\n- 4 weeks (starter)\n- 12 weeks (standard)\n- 16 weeks (extended)\n\n## Common Tirzepatide Side Effects to Ask About\n- Nausea or stomach discomfort\n- Fatigue or tiredness\n- Injection site reactions (redness, itching)\n- Changes in appetite\n- Constipation or diarrhea\n\n## Renewal Reminders\n- If REMAINING_WEEKS is 2: First renewal reminder - inform patient their plan is ending soon and ask if they want to renew\n- If REMAINING_WEEKS is 1: Final reminder - this is their last week, ask about renewal interest, team will follow up\n\n## IMPORTANT\n- Never provide medical advice\n- Always encourage contacting the doctor for concerns\n- Be supportive of their weight loss journey\n- Reference the knowledge base for accurate treatment information\n- NO EMOJIS - keep messages professional and clean"
         },
         "promptType": "define"
       },
@@ -325,7 +325,7 @@
         "rules": {
           "values": [
             {
-              "outputKey": "Treatment Ended",
+              "outputKey": "Needs Renewal Handoff",
               "conditions": {
                 "options": {
                   "version": 2,
@@ -340,7 +340,7 @@
                       "type": "boolean",
                       "operation": "true"
                     },
-                    "leftValue": "={{ $('Prepare Patient Context').item.json.isLastWeek }}"
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.needsRenewalReminder }}"
                   }
                 ]
               },
@@ -362,7 +362,7 @@
                       "type": "boolean",
                       "operation": "false"
                     },
-                    "leftValue": "={{ $('Prepare Patient Context').item.json.isLastWeek }}"
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.needsRenewalReminder }}"
                   }
                 ]
               },
@@ -412,12 +412,12 @@
       "typeVersion": 4.5
     },
     {
-      "id": "notify-team-completion",
-      "name": "Notify Team - Treatment Complete",
+      "id": "notify-team-renewal",
+      "name": "Notify Team - Renewal Handoff",
       "type": "n8n-nodes-base.telegram",
       "position": [2440, 240],
       "parameters": {
-        "text": "=**Treatment Plan Completed**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nTotal Weeks: {{ $('Prepare Patient Context').item.json.totalWeeks }}\nFinal Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\n\nPlease contact patient to discuss renewal options.",
+        "text": "=**Treatment Renewal Handoff**\n\n{{ $('Prepare Patient Context').item.json.isLastWeek ? 'FINAL WEEK' : '2 WEEKS REMAINING' }}\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCurrent Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nRemaining: {{ $('Prepare Patient Context').item.json.remainingWeeks }} week(s)\nCurrent Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Required:**\nContact patient to discuss renewal options.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
         "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "additionalFields": {
           "parse_mode": "Markdown"
@@ -589,7 +589,7 @@
       "parameters": {
         "text": "Patient {{ $json.patientName }} (Dose: {{ $json.currentDose }}, {{ $json.remainingWeeks }} weeks remaining) sent this message:\n\n\"{{ $json.messageText }}\"\n\nRespond appropriately. If they report side effects, acknowledge and advise consulting their doctor if severe. If they have questions, answer based on the knowledge base. Always be supportive and professional.",
         "options": {
-          "systemMessage": "You are a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Role\n- Respond to patient messages during their weekly check-in\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese\n- Keep messages concise (max 2-3 short paragraphs)\n- Use max 1-2 emojis per message\n\n## Response Guidelines\n- Always address patient by name\n- Acknowledge their concerns or feedback\n- For side effects: validate their experience, ask follow-up questions, recommend contacting doctor if severe\n- For questions: answer from knowledge base when possible\n- For positive feedback: celebrate their progress\n\n## Side Effects Response Protocol\nCommon side effects to acknowledge:\n- Nausea: normal at start, usually improves. Stay hydrated.\n- Fatigue: common, should improve. Rest when needed.\n- Injection site reactions: normal, should resolve. If persistent, contact doctor.\n- Appetite changes: expected effect of medication.\n- GI issues: eat smaller meals, avoid fatty foods.\n\nIf severe symptoms reported (persistent vomiting, severe pain, allergic reaction):\n- Express concern\n- Strongly recommend contacting the medical team immediately\n- Provide the clinic contact information\n\n## When to Escalate\nFlag for human follow-up if:\n- Severe side effects reported\n- Patient wants to stop treatment\n- Patient requests medical advice beyond scope\n- Patient seems distressed\n\n## IMPORTANT\n- Never provide specific medical advice\n- Always encourage contacting the doctor for health concerns\n- Be supportive of their weight loss journey\n- Log any concerns mentioned for follow-up"
+          "systemMessage": "You are a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Role\n- Respond to patient messages during their weekly check-in\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese\n- Keep messages concise (max 2-3 short paragraphs)\n- DO NOT use emojis in your messages\n\n## Response Guidelines\n- Always address patient by name\n- Acknowledge their concerns or feedback\n- For side effects: validate their experience, ask follow-up questions, recommend contacting doctor if severe\n- For questions: answer from knowledge base when possible\n- For positive feedback: acknowledge their progress supportively\n\n## Treatment Plans Available\n- 4 weeks (starter)\n- 12 weeks (standard)\n- 16 weeks (extended)\n\n## Side Effects Response Protocol\nCommon side effects to acknowledge:\n- Nausea: normal at start, usually improves. Stay hydrated.\n- Fatigue: common, should improve. Rest when needed.\n- Injection site reactions: normal, should resolve. If persistent, contact doctor.\n- Appetite changes: expected effect of medication.\n- GI issues: eat smaller meals, avoid fatty foods.\n\nIf severe symptoms reported (persistent vomiting, severe pain, allergic reaction):\n- Express concern\n- Strongly recommend contacting the medical team immediately\n- Provide the clinic contact information\n\n## When to Escalate\nFlag for human follow-up if:\n- Severe side effects reported\n- Patient wants to stop treatment\n- Patient requests medical advice beyond scope\n- Patient seems distressed\n- Patient asks about renewal (handoff to team)\n\n## IMPORTANT\n- Never provide specific medical advice\n- Always encourage contacting the doctor for health concerns\n- Be supportive of their weight loss journey\n- Log any concerns mentioned for follow-up\n- NO EMOJIS - keep messages professional and clean"
         },
         "promptType": "define"
       },
@@ -877,7 +877,7 @@
         "color": 7,
         "width": 600,
         "height": 260,
-        "content": "## Patient Check-in AI Agent - Tirzepatide Weekly\n\nThis workflow manages weekly check-ins for patients on Tirzepatide (Mounjaro) treatment plans.\n\n### Features:\n- **Scheduled Weekly Check-ins** - Sends personalized messages every Monday at 9 AM\n- **Google Sheets Integration** - Reads patient data and logs all interactions\n- **AI-Powered Responses** - Claude Haiku 4.5 handles conversations\n- **Memory** - Remembers conversation context per patient\n- **Side Effect Detection** - Analyzes responses and flags concerns\n- **Treatment Tracking** - Deducts remaining weeks, alerts on completion\n- **Team Notifications** - Telegram alerts for follow-ups needed\n\n### Required Setup:\n1. Configure Google Sheets credentials\n2. Set PATIENT_SHEET_ID environment variable\n3. Create Patients and CheckInLog sheets"
+        "content": "## Patient Check-in AI Agent - Tirzepatide Weekly\n\nThis workflow manages weekly check-ins for patients on Tirzepatide (Mounjaro) treatment plans.\n\n### Features:\n- **Scheduled Weekly Check-ins** - Sends personalized messages every Saturday at 11 AM\n- **Google Sheets Integration** - Reads patient data and logs all interactions\n- **AI-Powered Responses** - Claude Haiku 4.5 handles conversations (no emojis)\n- **Memory** - Remembers conversation context per patient\n- **Side Effect Detection** - Analyzes responses and flags concerns\n- **Treatment Tracking** - Deducts remaining weeks\n- **Renewal Reminders** - Alerts at 2 weeks and 1 week remaining\n- **Team Handoff** - Telegram alerts with full patient info for renewal\n\n### Treatment Plans: 4, 12, or 16 weeks\n\n### Required Setup:\n1. Configure Google Sheets credentials\n2. Set PATIENT_SHEET_ID environment variable\n3. Create Patients and CheckInLog sheets"
       },
       "typeVersion": 1
     },
@@ -1079,7 +1079,7 @@
       "main": [
         [
           {
-            "node": "Notify Team - Treatment Complete",
+            "node": "Notify Team - Renewal Handoff",
             "type": "main",
             "index": 0
           }

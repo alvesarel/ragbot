@@ -89,22 +89,31 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 - Normalmente resolve em 24-48 horas
 - Alternar locais de aplicacao (abdomen, coxa, braco)
 
-## Planos de Tratamento Tipicos
+## Planos de Tratamento Disponiveis
 
-### Plano 12 Semanas (3 meses)
-- Ideal para inicio de tratamento
-- Cobre fase de titulacao inicial
+### Plano 4 Semanas (Starter)
+- Plano inicial para novos pacientes
+- Ideal para avaliar tolerancia ao medicamento
+- Dose inicial de 2.5mg/semana
+- Permite ajuste antes de compromisso maior
+
+### Plano 12 Semanas (Standard)
+- Plano padrao recomendado
+- Cobre fase de titulacao inicial completa
 - Permite avaliacao de resposta
+- Resultados visiveis na maioria dos pacientes
 
-### Plano 24 Semanas (6 meses)
-- Inclui titulacao completa
-- Resultados mais significativos
+### Plano 16 Semanas (Extended)
+- Plano estendido para melhores resultados
+- Inclui fase de titulacao e manutencao
 - Tempo para ajustes de estilo de vida
+- Resultados mais significativos e sustentaveis
 
-### Plano 48 Semanas (12 meses)
-- Tratamento completo recomendado
-- Melhores resultados a longo prazo
-- Inclui fase de manutencao
+### Renovacao de Plano
+- Lembretes enviados com 2 semanas de antecedencia
+- Lembrete final na ultima semana
+- Equipe entra em contato para discutir renovacao
+- Paciente pode escolher qualquer plano disponivel
 
 ## Check-in Semanal - O Que Monitorar
 

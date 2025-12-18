@@ -5,11 +5,14 @@ Complete setup guide for the Tirzepatide Weekly Patient Check-in Agent.
 ## Overview
 
 This workflow automates weekly check-ins with patients on Tirzepatide (Mounjaro) treatment plans. It:
-- Sends personalized weekly check-in messages via WhatsApp
-- Handles patient responses with AI-powered conversations
+- Sends personalized weekly check-in messages via WhatsApp (Saturdays at 11 AM)
+- Handles patient responses with AI-powered conversations (no emojis, professional tone)
 - Tracks treatment progress in Google Sheets
 - Alerts medical team when follow-up is needed
-- Notifies when treatments are completing
+- Sends renewal reminders at 2 weeks and 1 week remaining
+- Hands off to team with full patient information for renewal discussions
+
+**Treatment Plans Available:** 4, 12, or 16 weeks
 
 ## Prerequisites
 
@@ -167,14 +170,14 @@ This indexes the Tirzepatide documentation for the AI agent to reference.
 
 ## Step 6: Configure Schedule
 
-The workflow is set to trigger every Monday at 9 AM by default.
+The workflow is set to trigger every **Saturday at 11 AM** by default.
 
 To change the schedule:
 1. Open the workflow in n8n
 2. Click on **Weekly Check-in Schedule** node
 3. Modify the schedule trigger settings:
-   - Day of week
-   - Time
+   - Day of week (default: Saturday)
+   - Time (default: 11:00)
    - Timezone
 
 ## Step 7: WhatsApp Webhook Setup
