@@ -54,7 +54,7 @@
               "renameOutput": true
             },
             {
-              "outputKey": "Unsupported",
+              "outputKey": "Video Message",
               "conditions": {
                 "options": {
                   "version": 2,
@@ -67,10 +67,88 @@
                   {
                     "operator": {
                       "type": "string",
-                      "operation": "notEquals"
+                      "operation": "equals"
                     },
                     "leftValue": "={{ $json.messages[0].type }}",
-                    "rightValue": "text"
+                    "rightValue": "video"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Audio Message",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "audio"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Unsupported",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "image"
+                  },
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "sticker"
+                  },
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "document"
+                  },
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "location"
+                  },
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "contacts"
                   }
                 ]
               },
@@ -88,7 +166,7 @@
       "type": "n8n-nodes-base.whatsApp",
       "position": [660, 520],
       "parameters": {
-        "textBody": "Ola! 💚 No momento, consigo processar apenas mensagens de texto. Por favor, envie sua pergunta em texto e terei prazer em ajudar!",
+        "textBody": "Ola! 💚 No momento, consigo processar mensagens de texto, audio e video. Por favor, envie sua pergunta em um desses formatos e terei prazer em ajudar!",
         "operation": "send",
         "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata?.phone_number_id }}",
         "requestOptions": {},
@@ -308,6 +386,162 @@
       "typeVersion": 1
     },
     {
+      "id": "get-video-media-url",
+      "name": "Get Video Media URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [660, 680],
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.messages[0].video.id }}",
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "whatsapp-bearer-creds",
+          "name": "WhatsApp Bearer Token"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "get-audio-media-url",
+      "name": "Get Audio Media URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [660, 840],
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.messages[0].audio.id }}",
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "whatsapp-bearer-creds",
+          "name": "WhatsApp Bearer Token"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "download-video-media",
+      "name": "Download Video Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [880, 680],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "whatsapp-bearer-creds",
+          "name": "WhatsApp Bearer Token"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "download-audio-media",
+      "name": "Download Audio Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [880, 840],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "whatsapp-bearer-creds",
+          "name": "WhatsApp Bearer Token"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "transcribe-video",
+      "name": "Transcribe Video",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [1100, 680],
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "data",
+        "options": {
+          "language": "pt",
+          "responseFormat": "text"
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1.8
+    },
+    {
+      "id": "transcribe-audio",
+      "name": "Transcribe Audio",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [1100, 840],
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "data",
+        "options": {
+          "language": "pt",
+          "responseFormat": "text"
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1.8
+    },
+    {
+      "id": "format-video-transcription",
+      "name": "Format Video Transcription",
+      "type": "n8n-nodes-base.code",
+      "position": [1320, 680],
+      "parameters": {
+        "jsCode": "// Format video transcription for the AI agent\nconst transcription = $input.first().json.text || '';\nconst triggerData = $('WhatsApp Trigger').first().json;\n\n// Create message structure matching text message format\nreturn {\n  messages: [{\n    from: triggerData.messages[0].from,\n    type: 'video_transcription',\n    text: {\n      body: `[Mensagem de Video Transcrita]\\n\\n${transcription}`\n    },\n    original_type: 'video',\n    video: triggerData.messages[0].video\n  }],\n  contacts: triggerData.contacts,\n  metadata: triggerData.metadata\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "format-audio-transcription",
+      "name": "Format Audio Transcription",
+      "type": "n8n-nodes-base.code",
+      "position": [1320, 840],
+      "parameters": {
+        "jsCode": "// Format audio transcription for the AI agent\nconst transcription = $input.first().json.text || '';\nconst triggerData = $('WhatsApp Trigger').first().json;\n\n// Create message structure matching text message format\nreturn {\n  messages: [{\n    from: triggerData.messages[0].from,\n    type: 'audio_transcription',\n    text: {\n      body: `[Mensagem de Audio Transcrita]\\n\\n${transcription}`\n    },\n    original_type: 'audio',\n    audio: triggerData.messages[0].audio\n  }],\n  contacts: triggerData.contacts,\n  metadata: triggerData.metadata\n};"
+      },
+      "typeVersion": 2
+    },
+    {
       "id": "sticky-note-main",
       "name": "Main Workflow Info",
       "type": "n8n-nodes-base.stickyNote",
@@ -316,7 +550,7 @@
         "color": 7,
         "width": 520,
         "height": 260,
-        "content": "## Sofia - Lead Qualification Bot (Claude Haiku 4.5)\n\nThis workflow qualifies leads from Meta Ads:\n\n1. **Receives** WhatsApp messages from Meta Ads leads\n2. **Qualifies** leads through natural conversation\n3. **Guides** them to schedule a consultation\n4. **Notifies** human support when lead is ready to schedule\n\n### Environment Variable Required:\n`HUMAN_SUPPORT_PHONE` - WhatsApp number for human support notifications\n\n### Prerequisites:\nRun **Sofia Knowledge Base - RAG Setup** workflow first."
+        "content": "## Sofia - Lead Qualification Bot (Claude Haiku 4.5)\n\nThis workflow qualifies leads from Meta Ads:\n\n1. **Receives** WhatsApp messages from Meta Ads leads\n2. **Transcribes** video and audio messages using OpenAI Whisper\n3. **Qualifies** leads through natural conversation\n4. **Guides** them to schedule a consultation\n5. **Notifies** human support when lead is ready to schedule\n\n### Environment Variable Required:\n`HUMAN_SUPPORT_PHONE` - WhatsApp number for human support notifications\n\n### Credentials Required:\n- WhatsApp Business API credentials\n- OpenAI API key (for Whisper transcription + embeddings)\n- `whatsapp-bearer-creds` - HTTP Header Auth for media download\n\n### Prerequisites:\nRun **Sofia Knowledge Base - RAG Setup** workflow first."
       },
       "typeVersion": 1
     },
@@ -347,10 +581,23 @@
       "typeVersion": 1
     },
     {
+      "id": "sticky-note-transcription",
+      "name": "Transcription Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [560, 600],
+      "parameters": {
+        "color": 6,
+        "width": 380,
+        "height": 200,
+        "content": "### Video & Audio Transcription\n\n**Supported formats:**\n- Video messages (WhatsApp video)\n- Audio messages (voice notes)\n\n**How it works:**\n1. Detects video/audio message type\n2. Downloads media from WhatsApp Cloud API\n3. Transcribes using **OpenAI Whisper** (Portuguese)\n4. Passes transcription to Sofia AI Agent\n\n**Requires:** `whatsapp-bearer-creds` credential with WhatsApp access token"
+      },
+      "typeVersion": 1
+    },
+    {
       "id": "sticky-note-qdrant",
       "name": "Qdrant Info",
       "type": "n8n-nodes-base.stickyNote",
-      "position": [860, 880],
+      "position": [860, 1000],
       "parameters": {
         "color": 5,
         "width": 400,
@@ -383,7 +630,109 @@
         ],
         [
           {
+            "node": "Get Video Media URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Audio Media URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Media URL": {
+      "main": [
+        [
+          {
+            "node": "Download Video Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio Media URL": {
+      "main": [
+        [
+          {
+            "node": "Download Audio Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video Media": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio Media": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Video": {
+      "main": [
+        [
+          {
+            "node": "Format Video Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Audio": {
+      "main": [
+        [
+          {
+            "node": "Format Audio Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Video Transcription": {
+      "main": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Audio Transcription": {
+      "main": [
+        [
+          {
+            "node": "Sofia AI Agent",
             "type": "main",
             "index": 0
           }
