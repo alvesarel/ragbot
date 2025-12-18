@@ -1,5 +1,5 @@
 {
-  "name": "Sofia Knowledge Base - RAG Setup",
+  "name": "Sofia Knowledge Base - RAG Setup (Google Drive)",
   "nodes": [
     {
       "parameters": {
@@ -16,46 +16,88 @@
     },
     {
       "parameters": {
-        "content": "## RAG Knowledge Base Setup\n\nThis workflow loads and embeds all knowledge base documents into Qdrant vector store.\n\n### Steps:\n1. **Trigger manually** to start the process\n2. **Read all markdown files** from knowledge-base folder\n3. **Split into chunks** for better retrieval\n4. **Generate embeddings** using OpenAI\n5. **Store in Qdrant** vector database\n\n### Run this workflow:\n- After adding/modifying knowledge base documents\n- To rebuild the entire vector store\n- Initial setup of the RAG system",
-        "width": 360,
-        "height": 320
+        "content": "## RAG Knowledge Base Setup (Google Drive)\n\nThis workflow loads and embeds knowledge base documents from Google Drive into Qdrant vector store.\n\n### Setup Required:\n1. **Google Drive Folder**: Create a folder in Google Drive for knowledge base documents\n2. **Configure Folder ID**: Update the 'List Files from Google Drive' node with your folder ID\n3. **Supported formats**: .md, .txt, .pdf, Google Docs\n\n### Steps:\n1. **Trigger manually** to start the process\n2. **List all files** from Google Drive folder\n3. **Download and parse** each document\n4. **Split into chunks** for better retrieval\n5. **Generate embeddings** using OpenAI\n6. **Store in Qdrant** vector database\n\n### Run this workflow:\n- After adding/modifying knowledge base documents in Drive\n- To rebuild the entire vector store\n- Initial setup of the RAG system",
+        "width": 400,
+        "height": 420
       },
       "id": "sticky-note",
       "name": "Instructions",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [220, 0]
+      "position": [220, -100]
     },
     {
       "parameters": {
-        "jsCode": "// Define all knowledge base files to process\nconst files = [\n  {\n    path: 'institutional/about_clinic.md',\n    category: 'institutional',\n    priority: 'normal'\n  },\n  {\n    path: 'treatments/methodology.md',\n    category: 'treatments',\n    priority: 'high'\n  },\n  {\n    path: 'faq/general_questions.md',\n    category: 'faq',\n    priority: 'high'\n  },\n  {\n    path: 'objection_handling/price_objections.md',\n    category: 'objections',\n    priority: 'high'\n  },\n  {\n    path: 'compliance/medical_disclaimers.md',\n    category: 'compliance',\n    priority: 'high'\n  }\n];\n\nreturn files.map(f => ({ json: f }));"
+        "operation": "list",
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID }}",
+          "mode": "id"
+        },
+        "filter": {},
+        "options": {
+          "fields": ["id", "name", "mimeType", "modifiedTime", "description"]
+        }
       },
-      "id": "list-files",
-      "name": "List Knowledge Base Files",
+      "id": "google-drive-list",
+      "name": "List Files from Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [440, 340],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-creds",
+          "name": "Google Drive OAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for supported file types and extract metadata\nconst items = $input.all();\nconst supportedMimeTypes = [\n  'text/markdown',\n  'text/plain',\n  'text/x-markdown',\n  'application/vnd.google-apps.document', // Google Docs\n  'application/pdf'\n];\n\n// Also filter by file extension as fallback\nconst supportedExtensions = ['.md', '.txt', '.pdf'];\n\nconst filteredFiles = items.filter(item => {\n  const mimeType = item.json.mimeType || '';\n  const fileName = item.json.name || '';\n  const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();\n  \n  return supportedMimeTypes.includes(mimeType) || \n         supportedExtensions.includes(extension) ||\n         mimeType.includes('google-apps.document');\n}).map(item => ({\n  json: {\n    fileId: item.json.id,\n    fileName: item.json.name,\n    mimeType: item.json.mimeType,\n    modifiedTime: item.json.modifiedTime,\n    description: item.json.description || '',\n    // Extract category from folder path or description\n    category: extractCategory(item.json.name, item.json.description),\n    priority: item.json.description?.includes('priority:high') ? 'high' : 'normal'\n  }\n}));\n\nfunction extractCategory(fileName, description) {\n  // Try to extract category from description field\n  if (description) {\n    const categoryMatch = description.match(/category:\\s*(\\w+)/i);\n    if (categoryMatch) return categoryMatch[1].toLowerCase();\n  }\n  \n  // Infer from filename patterns\n  const name = fileName.toLowerCase();\n  if (name.includes('faq') || name.includes('question')) return 'faq';\n  if (name.includes('treatment') || name.includes('protocol') || name.includes('tirzepatide')) return 'treatments';\n  if (name.includes('clinic') || name.includes('about') || name.includes('institutional')) return 'institutional';\n  if (name.includes('objection') || name.includes('price')) return 'objections';\n  if (name.includes('compliance') || name.includes('disclaimer') || name.includes('legal')) return 'compliance';\n  \n  return 'general';\n}\n\nif (filteredFiles.length === 0) {\n  return [{ json: { error: 'No supported files found in the Google Drive folder', supportedTypes: supportedMimeTypes } }];\n}\n\nreturn filteredFiles;"
+      },
+      "id": "filter-files",
+      "name": "Filter Supported Files",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 340]
-    },
-    {
-      "parameters": {
-        "filePath": "=/home/user/ragbot/knowledge-base/{{ $json.path }}",
-        "options": {}
-      },
-      "id": "read-file",
-      "name": "Read Markdown File",
-      "type": "n8n-nodes-base.readWriteFile",
-      "typeVersion": 1,
       "position": [660, 340]
     },
     {
       "parameters": {
-        "jsCode": "// Parse the markdown file and extract content\nconst fileData = $input.first().json;\nconst content = fileData.data;\nconst fileName = $('List Knowledge Base Files').item.json.path;\nconst category = $('List Knowledge Base Files').item.json.category;\nconst priority = $('List Knowledge Base Files').item.json.priority;\n\n// Remove frontmatter (YAML between ---)\nlet cleanContent = content;\nconst frontmatterMatch = content.match(/^---\\n([\\s\\S]*?)\\n---\\n/);\nif (frontmatterMatch) {\n  cleanContent = content.replace(frontmatterMatch[0], '').trim();\n}\n\n// Split content into sections by headings\nconst sections = [];\nconst lines = cleanContent.split('\\n');\nlet currentSection = { title: '', content: '', level: 0 };\n\nfor (const line of lines) {\n  // Check if line is a heading\n  const headingMatch = line.match(/^(#{1,4})\\s+(.+)/);\n  \n  if (headingMatch) {\n    // Save previous section if it has content\n    if (currentSection.content.trim()) {\n      sections.push({ ...currentSection });\n    }\n    // Start new section\n    currentSection = {\n      title: headingMatch[2].trim(),\n      content: '',\n      level: headingMatch[1].length\n    };\n  } else {\n    // Add line to current section\n    currentSection.content += line + '\\n';\n  }\n}\n\n// Don't forget last section\nif (currentSection.content.trim()) {\n  sections.push(currentSection);\n}\n\n// Create chunks with metadata\nconst chunks = sections\n  .filter(s => s.content.trim().length > 20) // Filter out empty/tiny sections\n  .map((section, index) => ({\n    content: `## ${section.title}\\n\\n${section.content.trim()}`,\n    metadata: {\n      source: fileName,\n      category: category,\n      priority: priority,\n      section: section.title,\n      chunk_index: index\n    }\n  }));\n\n// If no good sections found, use whole content as one chunk\nif (chunks.length === 0 && cleanContent.trim().length > 20) {\n  chunks.push({\n    content: cleanContent.trim(),\n    metadata: {\n      source: fileName,\n      category: category,\n      priority: priority,\n      section: 'full_document',\n      chunk_index: 0\n    }\n  });\n}\n\nreturn chunks.map(c => ({ json: c }));"
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.fileId }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "text/plain"
+            }
+          }
+        }
       },
-      "id": "parse-markdown",
+      "id": "google-drive-download",
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [880, 340],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-creds",
+          "name": "Google Drive OAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the downloaded file and extract content\nconst items = $input.all();\nconst allChunks = [];\n\nfor (const item of items) {\n  // Get binary data from downloaded file\n  const binaryData = item.binary?.data;\n  let content = '';\n  \n  if (binaryData) {\n    // Convert binary to string\n    content = Buffer.from(binaryData.data, 'base64').toString('utf-8');\n  } else if (item.json.content) {\n    content = item.json.content;\n  }\n  \n  // Get file metadata from previous node\n  const fileMetadata = $('Filter Supported Files').item.json;\n  const fileName = fileMetadata.fileName;\n  const category = fileMetadata.category;\n  const priority = fileMetadata.priority;\n  \n  // Remove frontmatter (YAML between ---) if present\n  let cleanContent = content;\n  const frontmatterMatch = content.match(/^---\\n([\\s\\S]*?)\\n---\\n/);\n  if (frontmatterMatch) {\n    cleanContent = content.replace(frontmatterMatch[0], '').trim();\n  }\n  \n  // Split content into sections by headings\n  const sections = [];\n  const lines = cleanContent.split('\\n');\n  let currentSection = { title: fileName.replace(/\\.[^/.]+$/, ''), content: '', level: 0 };\n  \n  for (const line of lines) {\n    // Check if line is a heading\n    const headingMatch = line.match(/^(#{1,4})\\s+(.+)/);\n    \n    if (headingMatch) {\n      // Save previous section if it has content\n      if (currentSection.content.trim()) {\n        sections.push({ ...currentSection });\n      }\n      // Start new section\n      currentSection = {\n        title: headingMatch[2].trim(),\n        content: '',\n        level: headingMatch[1].length\n      };\n    } else {\n      // Add line to current section\n      currentSection.content += line + '\\n';\n    }\n  }\n  \n  // Don't forget last section\n  if (currentSection.content.trim()) {\n    sections.push(currentSection);\n  }\n  \n  // Create chunks with metadata\n  const chunks = sections\n    .filter(s => s.content.trim().length > 20) // Filter out empty/tiny sections\n    .map((section, index) => ({\n      content: `## ${section.title}\\n\\n${section.content.trim()}`,\n      metadata: {\n        source: `gdrive:${fileName}`,\n        source_type: 'google_drive',\n        file_id: fileMetadata.fileId,\n        category: category,\n        priority: priority,\n        section: section.title,\n        chunk_index: index,\n        modified_time: fileMetadata.modifiedTime\n      }\n    }));\n  \n  // If no good sections found, use whole content as one chunk\n  if (chunks.length === 0 && cleanContent.trim().length > 20) {\n    chunks.push({\n      content: cleanContent.trim(),\n      metadata: {\n        source: `gdrive:${fileName}`,\n        source_type: 'google_drive',\n        file_id: fileMetadata.fileId,\n        category: category,\n        priority: priority,\n        section: 'full_document',\n        chunk_index: 0,\n        modified_time: fileMetadata.modifiedTime\n      }\n    });\n  }\n  \n  allChunks.push(...chunks);\n}\n\nreturn allChunks.map(c => ({ json: c }));"
+      },
+      "id": "parse-document",
       "name": "Parse & Chunk Document",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 340]
+      "position": [1100, 340]
     },
     {
       "parameters": {
@@ -73,7 +115,7 @@
       "name": "Insert into Qdrant",
       "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
       "typeVersion": 1,
-      "position": [1100, 340],
+      "position": [1320, 340],
       "credentials": {
         "qdrantApi": {
           "id": "qdrant-creds",
@@ -90,7 +132,7 @@
       "name": "OpenAI Embeddings",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
-      "position": [1100, 540],
+      "position": [1320, 540],
       "credentials": {
         "openAiApi": {
           "id": "openai-creds",
@@ -108,7 +150,7 @@
       "name": "Recursive Text Splitter",
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
-      "position": [1240, 540]
+      "position": [1460, 540]
     },
     {
       "parameters": {
@@ -122,7 +164,7 @@
       "name": "Default Data Loader",
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1,
-      "position": [1380, 540]
+      "position": [1600, 540]
     },
     {
       "parameters": {
@@ -133,29 +175,41 @@
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
-      "position": [1320, 340]
+      "position": [1540, 340]
     },
     {
       "parameters": {
-        "jsCode": "// Summarize the embedding results\nconst items = $input.all();\nconst results = items.flatMap(i => i.json.data || [i.json]);\n\nconst summary = {\n  success: true,\n  totalChunksProcessed: results.length,\n  message: `Successfully embedded ${results.length} document chunks into Qdrant vector store 'sofia_knowledge'.`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+        "jsCode": "// Summarize the embedding results\nconst items = $input.all();\nconst results = items.flatMap(i => i.json.data || [i.json]);\n\nconst summary = {\n  success: true,\n  source: 'Google Drive',\n  totalChunksProcessed: results.length,\n  message: `Successfully embedded ${results.length} document chunks from Google Drive into Qdrant vector store 'sofia_knowledge'.`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
       },
       "id": "summary",
       "name": "Generate Summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1540, 340]
+      "position": [1760, 340]
     },
     {
       "parameters": {
-        "content": "=## Embedding Complete!\n\n{{ $json.message }}\n\nTimestamp: {{ $json.timestamp }}",
-        "width": 300,
-        "height": 140
+        "content": "=## Embedding Complete!\n\n**Source:** {{ $json.source }}\n\n{{ $json.message }}\n\nTimestamp: {{ $json.timestamp }}",
+        "width": 320,
+        "height": 160
       },
       "id": "result-note",
       "name": "Result",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [1760, 320]
+      "position": [1980, 320]
+    },
+    {
+      "parameters": {
+        "content": "## Google Drive Setup\n\n### 1. Get Folder ID\nOpen your Google Drive folder and copy the ID from the URL:\n`https://drive.google.com/drive/folders/YOUR_FOLDER_ID`\n\n### 2. Set Environment Variable\nAdd to n8n environment:\n```\nGOOGLE_DRIVE_KNOWLEDGE_FOLDER_ID=your_folder_id_here\n```\n\nOr manually update the 'List Files from Google Drive' node.\n\n### 3. File Naming Convention\nUse descriptive names to auto-categorize:\n- `faq_*.md` → FAQ category\n- `treatment_*.md` → Treatments\n- `about_clinic.md` → Institutional\n- `price_objections.md` → Objections\n- `disclaimer_*.md` → Compliance\n\n### 4. Priority Tagging\nAdd `priority:high` in file description for high-priority docs.",
+        "width": 360,
+        "height": 440
+      },
+      "id": "setup-note",
+      "name": "Setup Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [640, -100]
     }
   ],
   "connections": {
@@ -163,25 +217,36 @@
       "main": [
         [
           {
-            "node": "List Knowledge Base Files",
+            "node": "List Files from Google Drive",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "List Knowledge Base Files": {
+    "List Files from Google Drive": {
       "main": [
         [
           {
-            "node": "Read Markdown File",
+            "node": "Filter Supported Files",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read Markdown File": {
+    "Filter Supported Files": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
       "main": [
         [
           {
@@ -240,7 +305,7 @@
       "ai_textSplitter": [
         [
           {
-            "node": "Document Loader",
+            "node": "Default Data Loader",
             "type": "ai_textSplitter",
             "index": 0
           }
@@ -275,11 +340,15 @@
     {
       "name": "Setup",
       "id": "3"
+    },
+    {
+      "name": "Google Drive",
+      "id": "4"
     }
   ],
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "sofia-rag-setup"
+    "instanceId": "sofia-rag-setup-gdrive"
   }
 }
