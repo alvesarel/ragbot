@@ -1,6 +1,8 @@
 # Sofia Setup Guide
 
-Complete setup guide for deploying Sofia Assistant.
+Complete setup guide for deploying Sofia, the Sales Assistant.
+
+> **Note**: For Diana (Patient Check-in Agent) setup, see [PATIENT_CHECKIN_SETUP.md](PATIENT_CHECKIN_SETUP.md)
 
 ## Prerequisites
 
