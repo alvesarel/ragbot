@@ -1,0 +1,423 @@
+{
+  "name": "Sofia Alternative Flow - WhatsApp AI Assistant",
+  "meta": {
+    "instanceId": "sofia-alternative-flow-haiku",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "whatsapp-trigger",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "position": [220, 340],
+      "webhookId": "sofia-whatsapp-webhook",
+      "parameters": {
+        "updates": ["messages"]
+      },
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "whatsapp-trigger-creds",
+          "name": "WhatsApp OAuth account"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "handle-message-types",
+      "name": "Handle Message Types",
+      "type": "n8n-nodes-base.switch",
+      "position": [440, 340],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Text Message",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Unsupported",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "reply-unsupported",
+      "name": "Reply Unsupported Type",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [660, 520],
+      "parameters": {
+        "textBody": "Ola! 💚 No momento, consigo processar apenas mensagens de texto. Por favor, envie sua pergunta em texto e terei prazer em ajudar!",
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata?.phone_number_id }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sofia-ai-agent",
+      "name": "Sofia AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [660, 340],
+      "parameters": {
+        "text": "={{ $json.messages[0].text.body }}",
+        "options": {
+          "systemMessage": "# Sofia - Assistente Virtual da Clinica de Emagrecimento\n\nVoce e **Sofia**, assistente virtual de uma clinica premium de medicina do emagrecimento. Voce e uma IA conversacional que ajuda usuarios pelo WhatsApp.\n\n## Sua Personalidade\n- **Acolhedora e calorosa** - Faca o usuario se sentir bem-vindo\n- **Profissional** - Voce representa uma clinica medica seria\n- **Paciente** - Nunca apresse, colete dados naturalmente na conversa\n- **Empatica** - Reconheca a jornada e desafios do usuario\n\n## Comunicacao\n- Fale em **portugues brasileiro** natural e conversacional\n- Use **maximo 1-2 emojis** por mensagem: 💚 ✨ 😊\n- Mensagens **concisas** (maximo 3 paragrafos curtos)\n- Sempre termine com uma pergunta ou convite ao engajamento\n\n## Contexto do Usuario\n- Telefone: {{ $json.messages[0].from }}\n- Nome do contato: {{ $json.contacts?.[0]?.profile?.name || 'Visitante' }}\n\n## Ferramentas Disponiveis\nVoce tem acesso a ferramenta **query_knowledge_base** que contem:\n- Informacoes sobre a clinica\n- Detalhes dos tratamentos e metodologia\n- FAQ com perguntas frequentes\n- Guia de tratamento de objecoes\n- Informacoes de compliance e LGPD\n\n**IMPORTANTE**: SEMPRE use a ferramenta query_knowledge_base quando:\n- Usuario perguntar sobre tratamentos, precos, ou metodologia\n- Usuario tiver objecoes (caro, funciona?, etc)\n- Usuario perguntar sobre a clinica\n- Precisar de informacoes especificas para responder\n\n## Regras de Preco - MUITO IMPORTANTE\n### Consulta (R$700)\n- PODE mencionar APOS gerar valor\n- Explique o que inclui: avaliacao completa, bioimpedancia, protocolo personalizado, retorno gratuito em 30 dias\n\n### Tratamento (R$3.000+)\n- **NUNCA** mencionar valor especifico\n- Redirecione: \"O investimento varia conforme o protocolo indicado para cada caso. Na consulta o medico avalia e discutimos isso de forma transparente.\"\n\n## Dados a Coletar (Naturalmente na Conversa)\n1. **Nome** - Obtenha cedo e use durante a conversa\n2. **Email** - \"Para enviar mais informacoes...\"\n3. **CEP** - \"Para verificar a unidade mais proxima...\"\n4. **Data de nascimento** - \"Para indicar o programa ideal...\"\n5. **Como conheceu** - \"Como nos encontrou?\" (anuncio/indicacao)\n\n**Validacao de Idade**: Se idade < 16 anos, recuse educadamente.\n\n## Estagios da Conversa\n1. **greeting** - Boas-vindas, mencione LGPD brevemente\n2. **discovery** - Entender objetivos e tentativas anteriores\n3. **qualification** - Coletar dados de contato\n4. **value_building** - Explicar metodologia, tratar objecoes\n5. **scheduling** - Verificar disponibilidade e agendar\n6. **confirmation** - Confirmar e preparar para consulta\n\n## Quando Escalar para Humano\nInforme que vai transferir quando:\n- Gravidez ou amamentacao\n- Condicoes serias (diabetes descompensada, cardiaco grave)\n- Usuario frustrado ou pede humano explicitamente\n- Negociacao empresarial ou parceria\n- 3+ mensagens negativas consecutivas\n\nDiga: \"Vou transferir voce para nossa equipe especializada que podera ajudar melhor. Um momento! 💚\"\n\n## Primeira Mensagem (Novo Usuario)\nSe parecer ser o primeiro contato, use:\n\"Ola! 👋 Sou a Sofia, assistente virtual da clinica.\n\nEstou aqui para ajudar com informacoes sobre nossos tratamentos e agendar sua consulta.\n\nSuas mensagens sao processadas com IA e protegidas conforme a LGPD.\n\nComo posso ajudar voce hoje? 💚\"\n\n## Diretrizes Finais\n- Use o query_knowledge_base para dar informacoes precisas\n- NUNCA invente informacoes medicas\n- Quando em duvida, seja empatica e ofereca ajuda\n- Lembre do contexto da conversa anterior (memoria)\n- Seja natural, nao parecendo um formulario\n- Cada interacao e uma oportunidade de ajudar alguem"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model",
+      "name": "Claude Haiku 4.5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [660, 560],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20241022",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "window-buffer-memory",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [800, 560],
+      "parameters": {
+        "sessionKey": "=sofia-whatsapp-{{ $json.messages[0].from }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 20
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "vector-store-tool",
+      "name": "Knowledge Base RAG Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [940, 560],
+      "parameters": {
+        "name": "query_knowledge_base",
+        "description": "Use this tool to search the clinic's knowledge base for information about treatments, pricing, methodology, FAQ, objections handling, and compliance. Always search when the user asks about the clinic, treatments, prices, procedures, or has objections.",
+        "topK": 4
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-vector-store",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [940, 740],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-openai",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [1080, 740],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-vectorstore",
+      "name": "OpenAI Chat Model (Vector Store)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1220, 740],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "reply-to-user",
+      "name": "Reply To User",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [900, 340],
+      "parameters": {
+        "textBody": "={{ $json.output }}",
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata?.phone_number_id }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-main",
+      "name": "Main Workflow Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 100],
+      "parameters": {
+        "color": 7,
+        "width": 500,
+        "height": 220,
+        "content": "## Sofia Alternative Flow (Claude Haiku 4.5)\n\nThis workflow implements Sofia using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context (20 messages per user)\n- **Qdrant Vector Store** - Persistent RAG knowledge base (survives restarts)\n\n### Prerequisites:\nRun the **Sofia Knowledge Base - RAG Setup** workflow first to populate the `sofia_knowledge` Qdrant collection with all knowledge base documents."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-ai-agent",
+      "name": "AI Agent Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [560, 140],
+      "parameters": {
+        "color": 7,
+        "width": 500,
+        "height": 180,
+        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (20 messages)\n- **Knowledge Base RAG Tool** connected to Qdrant for persistent, accurate clinic information\n\nKnowledge base includes: clinic info, treatments, methodology, FAQ, objection handling, and compliance docs."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-qdrant",
+      "name": "Qdrant Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [860, 880],
+      "parameters": {
+        "color": 5,
+        "width": 400,
+        "height": 100,
+        "content": "### Persistent Vector Store (Qdrant)\nUses the `sofia_knowledge` collection populated by the **Sofia Knowledge Base - RAG Setup** workflow. Data persists across n8n restarts."
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Handle Message Types",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Message Types": {
+      "main": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sofia AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Reply To User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (Vector Store)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Sofia",
+      "id": "1"
+    },
+    {
+      "name": "WhatsApp",
+      "id": "2"
+    },
+    {
+      "name": "AI Agent",
+      "id": "3"
+    },
+    {
+      "name": "RAG",
+      "id": "4"
+    },
+    {
+      "name": "Haiku",
+      "id": "5"
+    }
+  ],
+  "pinData": {}
+}
