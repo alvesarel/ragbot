@@ -1,0 +1,285 @@
+{
+  "name": "Sofia Knowledge Base - RAG Setup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": []
+        },
+        "options": {}
+      },
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [220, 340]
+    },
+    {
+      "parameters": {
+        "content": "## RAG Knowledge Base Setup\n\nThis workflow loads and embeds all knowledge base documents into Qdrant vector store.\n\n### Steps:\n1. **Trigger manually** to start the process\n2. **Read all markdown files** from knowledge-base folder\n3. **Split into chunks** for better retrieval\n4. **Generate embeddings** using OpenAI\n5. **Store in Qdrant** vector database\n\n### Run this workflow:\n- After adding/modifying knowledge base documents\n- To rebuild the entire vector store\n- Initial setup of the RAG system",
+        "width": 360,
+        "height": 320
+      },
+      "id": "sticky-note",
+      "name": "Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define all knowledge base files to process\nconst files = [\n  {\n    path: 'institutional/about_clinic.md',\n    category: 'institutional',\n    priority: 'normal'\n  },\n  {\n    path: 'treatments/methodology.md',\n    category: 'treatments',\n    priority: 'high'\n  },\n  {\n    path: 'faq/general_questions.md',\n    category: 'faq',\n    priority: 'high'\n  },\n  {\n    path: 'objection_handling/price_objections.md',\n    category: 'objections',\n    priority: 'high'\n  },\n  {\n    path: 'compliance/medical_disclaimers.md',\n    category: 'compliance',\n    priority: 'high'\n  }\n];\n\nreturn files.map(f => ({ json: f }));"
+      },
+      "id": "list-files",
+      "name": "List Knowledge Base Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "filePath": "=/home/user/ragbot/knowledge-base/{{ $json.path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read Markdown File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [660, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the markdown file and extract content\nconst fileData = $input.first().json;\nconst content = fileData.data;\nconst fileName = $('List Knowledge Base Files').item.json.path;\nconst category = $('List Knowledge Base Files').item.json.category;\nconst priority = $('List Knowledge Base Files').item.json.priority;\n\n// Remove frontmatter (YAML between ---)\nlet cleanContent = content;\nconst frontmatterMatch = content.match(/^---\\n([\\s\\S]*?)\\n---\\n/);\nif (frontmatterMatch) {\n  cleanContent = content.replace(frontmatterMatch[0], '').trim();\n}\n\n// Split content into sections by headings\nconst sections = [];\nconst lines = cleanContent.split('\\n');\nlet currentSection = { title: '', content: '', level: 0 };\n\nfor (const line of lines) {\n  // Check if line is a heading\n  const headingMatch = line.match(/^(#{1,4})\\s+(.+)/);\n  \n  if (headingMatch) {\n    // Save previous section if it has content\n    if (currentSection.content.trim()) {\n      sections.push({ ...currentSection });\n    }\n    // Start new section\n    currentSection = {\n      title: headingMatch[2].trim(),\n      content: '',\n      level: headingMatch[1].length\n    };\n  } else {\n    // Add line to current section\n    currentSection.content += line + '\\n';\n  }\n}\n\n// Don't forget last section\nif (currentSection.content.trim()) {\n  sections.push(currentSection);\n}\n\n// Create chunks with metadata\nconst chunks = sections\n  .filter(s => s.content.trim().length > 20) // Filter out empty/tiny sections\n  .map((section, index) => ({\n    content: `## ${section.title}\\n\\n${section.content.trim()}`,\n    metadata: {\n      source: fileName,\n      category: category,\n      priority: priority,\n      section: section.title,\n      chunk_index: index\n    }\n  }));\n\n// If no good sections found, use whole content as one chunk\nif (chunks.length === 0 && cleanContent.trim().length > 20) {\n  chunks.push({\n    content: cleanContent.trim(),\n    metadata: {\n      source: fileName,\n      category: category,\n      priority: priority,\n      section: 'full_document',\n      chunk_index: 0\n    }\n  });\n}\n\nreturn chunks.map(c => ({ json: c }));"
+      },
+      "id": "parse-markdown",
+      "name": "Parse & Chunk Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 340]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {
+          "clearCollection": false
+        }
+      },
+      "id": "qdrant-insert",
+      "name": "Insert into Qdrant",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [1100, 340],
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "embeddings",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [1100, 540],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 1000,
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "id": "text-splitter",
+      "name": "Recursive Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [1240, 540]
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.content }}",
+        "options": {
+          "metadata": "={{ $json.metadata }}"
+        }
+      },
+      "id": "document-loader",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [1380, 540]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1320, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Summarize the embedding results\nconst items = $input.all();\nconst results = items.flatMap(i => i.json.data || [i.json]);\n\nconst summary = {\n  success: true,\n  totalChunksProcessed: results.length,\n  message: `Successfully embedded ${results.length} document chunks into Qdrant vector store 'sofia_knowledge'.`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "summary",
+      "name": "Generate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 340]
+    },
+    {
+      "parameters": {
+        "content": "=## Embedding Complete!\n\n{{ $json.message }}\n\nTimestamp: {{ $json.timestamp }}",
+        "width": 300,
+        "height": 140
+      },
+      "id": "result-note",
+      "name": "Result",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1760, 320]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Knowledge Base Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Knowledge Base Files": {
+      "main": [
+        [
+          {
+            "node": "Read Markdown File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Markdown File": {
+      "main": [
+        [
+          {
+            "node": "Parse & Chunk Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Chunk Document": {
+      "main": [
+        [
+          {
+            "node": "Insert into Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert into Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert into Qdrant",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Document Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert into Qdrant",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Sofia",
+      "id": "1"
+    },
+    {
+      "name": "RAG",
+      "id": "2"
+    },
+    {
+      "name": "Setup",
+      "id": "3"
+    }
+  ],
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "sofia-rag-setup"
+  }
+}
