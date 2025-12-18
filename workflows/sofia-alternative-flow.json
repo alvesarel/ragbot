@@ -151,7 +151,7 @@
       "parameters": {
         "sessionKey": "=sofia-whatsapp-{{ $json.messages[0].from }}",
         "sessionIdType": "customKey",
-        "contextWindowLength": 20
+        "contextWindowLength": 50
       },
       "typeVersion": 1.2
     },
@@ -254,7 +254,7 @@
         "color": 7,
         "width": 500,
         "height": 220,
-        "content": "## Sofia Alternative Flow (Claude Haiku 4.5)\n\nThis workflow implements Sofia using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context (20 messages per user)\n- **Qdrant Vector Store** - Persistent RAG knowledge base (survives restarts)\n\n### Prerequisites:\nRun the **Sofia Knowledge Base - RAG Setup** workflow first to populate the `sofia_knowledge` Qdrant collection with all knowledge base documents."
+        "content": "## Sofia Alternative Flow (Claude Haiku 4.5)\n\nThis workflow implements Sofia using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context (50 messages per user)\n- **Qdrant Vector Store** - Persistent RAG knowledge base (survives restarts)\n\n### Prerequisites:\nRun the **Sofia Knowledge Base - RAG Setup** workflow first to populate the `sofia_knowledge` Qdrant collection with all knowledge base documents."
       },
       "typeVersion": 1
     },
@@ -267,7 +267,7 @@
         "color": 7,
         "width": 500,
         "height": 180,
-        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (20 messages)\n- **Knowledge Base RAG Tool** connected to Qdrant for persistent, accurate clinic information\n\nKnowledge base includes: clinic info, treatments, methodology, FAQ, objection handling, and compliance docs."
+        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (50 messages)\n- **Knowledge Base RAG Tool** connected to Qdrant for persistent, accurate clinic information\n\nKnowledge base includes: clinic info, treatments, methodology, FAQ, objection handling, and compliance docs."
       },
       "typeVersion": 1
     },
