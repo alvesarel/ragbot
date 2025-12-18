@@ -253,7 +253,7 @@
       "parameters": {
         "qdrantCollection": {
           "__rl": true,
-          "value": "sofia_knowledge",
+          "value": "clinic_knowledge_base",
           "mode": "list"
         },
         "options": {}
@@ -375,7 +375,7 @@
         "additionalFields": {
           "previewUrl": false
         },
-        "recipientPhoneNumber": "={{ $env.HUMAN_SUPPORT_PHONE }}"
+        "recipientPhoneNumber": "5511972433887"
       },
       "credentials": {
         "whatsAppApi": {
@@ -602,7 +602,7 @@
         "color": 5,
         "width": 400,
         "height": 100,
-        "content": "### Persistent Vector Store (Qdrant)\nUses the `sofia_knowledge` collection populated by the **Sofia Knowledge Base - RAG Setup** workflow. Data persists across n8n restarts."
+        "content": "### Persistent Vector Store (Qdrant)\nUses the `clinic_knowledge_base` collection populated by the embedding script or **Sofia Knowledge Base - RAG Setup** workflow. Data persists across n8n restarts."
       },
       "typeVersion": 1
     }

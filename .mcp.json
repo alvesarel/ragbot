@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "n8n": {
+      "type": "http",
+      "url": "https://primary-production-5a6f1.up.railway.app/mcp-server/http"
+    }
+  }
+}

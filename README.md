@@ -73,10 +73,7 @@ ragbot/
 ├── workflows/
 │   ├── sofia-alternative-flow.json       # Sofia: Lead qualification (WhatsApp)
 │   ├── diana-patient-checkin.json        # Diana: Patient check-ins (WhatsApp)
-│   ├── yara-executive-assistant.json     # Yara: Executive assistant (Telegram)
-│   ├── yara-fetch-patients.json          # Yara: Sub-workflow for patient data
-│   ├── yara-fetch-checkin-logs.json      # Yara: Sub-workflow for check-in logs
-│   └── knowledge-base-setup.json         # RAG ingestion workflow
+│   └── yara-executive-assistant.json     # Yara: Executive assistant (Telegram, consolidated)
 ├── knowledge-base/                       # RAG documents
 │   ├── institutional/
 │   │   └── about_clinic.md
@@ -277,7 +274,7 @@ PATIENT_SHEET_ID=your_spreadsheet_id
 # Vector Database
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=your_key
-QDRANT_COLLECTION=sofia_knowledge
+QDRANT_COLLECTION_NAME=clinic_knowledge_base
 
 # Notifications
 TELEGRAM_BOT_TOKEN=123:ABC
@@ -360,11 +357,9 @@ See [docs/YARA_SETUP.md](docs/YARA_SETUP.md) for complete setup instructions.
 
 1. Create Telegram bot via @BotFather
 2. Get your Telegram user ID via @userinfobot
-3. Import sub-workflows first (yara-fetch-patients, yara-fetch-checkin-logs)
-4. Note workflow IDs and add to environment variables
-5. Import main workflow (yara-executive-assistant)
-6. Activate all workflows
-7. Chat with Yara on Telegram!
+3. Import `yara-executive-assistant.json` (single consolidated workflow)
+4. Configure credentials and activate
+5. Chat with Yara on Telegram!
 
 ### Environment Variables (Yara-specific)
 
@@ -372,8 +367,6 @@ See [docs/YARA_SETUP.md](docs/YARA_SETUP.md) for complete setup instructions.
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=-your_group_id
 YARA_AUTHORIZED_USER_ID=your_user_id
-YARA_FETCH_PATIENTS_WORKFLOW_ID=workflow_id
-YARA_FETCH_CHECKINS_WORKFLOW_ID=workflow_id
 ```
 
 ---

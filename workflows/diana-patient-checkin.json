@@ -45,7 +45,7 @@
         },
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         }
       },
@@ -166,7 +166,7 @@
       "parameters": {
         "qdrantCollection": {
           "__rl": true,
-          "value": "sofia_knowledge",
+          "value": "clinic_knowledge_base",
           "mode": "list"
         },
         "options": {}
@@ -221,7 +221,7 @@
       "parameters": {
         "textBody": "={{ $json.output }}",
         "operation": "send",
-        "phoneNumberId": "={{ $env.WHATSAPP_PHONE_NUMBER_ID }}",
+        "phoneNumberId": "your_phone_number_id",
         "requestOptions": {},
         "additionalFields": {
           "previewUrl": false
@@ -267,7 +267,7 @@
         "options": {},
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         }
       },
@@ -303,7 +303,7 @@
         },
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         },
         "matchingColumns": ["NAME"]
@@ -420,7 +420,7 @@
         },
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         },
         "matchingColumns": ["NAME"]
@@ -440,7 +440,7 @@
       "position": [2440, 180],
       "parameters": {
         "text": "=**TREATMENT COMPLETED - Final Week**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCompleted Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nFinal Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Required:**\nContact patient to discuss renewal options.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
-        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "chatId": "-5050985328",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
@@ -460,7 +460,7 @@
       "position": [2220, 420],
       "parameters": {
         "text": "=**Renewal Reminder - 2 Weeks Remaining**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCurrent Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nRemaining: 2 weeks (after this check-in: 1 week)\nCurrent Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Suggested:**\nReach out to discuss renewal options before treatment ends.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
-        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "chatId": "-5050985328",
         "additionalFields": {
           "parse_mode": "Markdown"
         }
@@ -573,7 +573,7 @@
         "options": {},
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         }
       },
@@ -693,7 +693,7 @@
       "parameters": {
         "qdrantCollection": {
           "__rl": true,
-          "value": "sofia_knowledge",
+          "value": "clinic_knowledge_base",
           "mode": "list"
         },
         "options": {}
@@ -804,7 +804,7 @@
         "options": {},
         "documentId": {
           "__rl": true,
-          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "value": "your_google_sheet_id_here",
           "mode": "id"
         }
       },
@@ -851,7 +851,7 @@
       "position": [2440, 500],
       "parameters": {
         "text": "=**Patient Follow-up Required**\n\nPatient: {{ $json.patientName }}\nPhone: {{ $json.phone }}\nCurrent Dose: {{ $json.currentDose }}\nWeeks Remaining: {{ $json.remainingWeeks }}\n\n**Patient Message:**\n{{ $json.messageText }}\n\n**Side Effects Mentioned:** {{ $json.mentionedSideEffects || 'None detected' }}\n**Concerns Detected:** {{ $json.hasConcerns ? 'Yes' : 'No' }}\n\nPlease contact patient to follow up.",
-        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "chatId": "-5050985328",
         "additionalFields": {
           "parse_mode": "Markdown"
         }

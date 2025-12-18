@@ -1,8 +1,14 @@
 # Sofia Setup Guide
 
-Complete setup guide for deploying Sofia, the Sales Assistant.
+Complete setup guide for deploying Sofia, the Sales Lead Qualification Assistant.
 
-> **Note**: For Diana (Patient Check-in Agent) setup, see [PATIENT_CHECKIN_SETUP.md](PATIENT_CHECKIN_SETUP.md)
+> **Other Agents:**
+> - Diana (Patient Check-in): [PATIENT_CHECKIN_SETUP.md](PATIENT_CHECKIN_SETUP.md)
+> - Yara (Executive Assistant): [YARA_SETUP.md](YARA_SETUP.md)
+
+## Overview
+
+Sofia is a WhatsApp AI agent that qualifies leads from Meta Ads, builds value through conversation, and schedules consultations. She uses RAG to retrieve clinic information and handles objections professionally.
 
 ## Prerequisites
 
@@ -10,8 +16,9 @@ Complete setup guide for deploying Sofia, the Sales Assistant.
 - Supabase project
 - Qdrant instance (self-hosted or cloud)
 - Meta Business Account with WhatsApp API access
-- Anthropic API key
-- OpenAI API key
+- Anthropic API key (Claude Haiku 4.5)
+- OpenAI API key (embeddings)
+- Telegram Bot (for handoff notifications)
 
 ## Step 1: Supabase Database
 
@@ -35,9 +42,9 @@ Complete setup guide for deploying Sofia, the Sales Assistant.
 docker run -p 6333:6333 qdrant/qdrant
 ```
 
-Create the collection:
+Create the collection (if not using the embedding script):
 ```bash
-curl -X PUT 'http://localhost:6333/collections/sofia_knowledge' \
+curl -X PUT 'http://localhost:6333/collections/clinic_knowledge_base' \
   -H 'Content-Type: application/json' \
   -d '{
     "vectors": {
@@ -49,6 +56,8 @@ curl -X PUT 'http://localhost:6333/collections/sofia_knowledge' \
 
 ## Step 3: Index Knowledge Base
 
+The knowledge base is shared by all agents (Sofia, Diana, Yara).
+
 1. Install dependencies:
 ```bash
 npm install
@@ -57,15 +66,17 @@ npm install
 2. Set environment variables:
 ```bash
 export OPENAI_API_KEY=sk-xxxxx
-export QDRANT_URL=http://localhost:6333
+export QDRANT_URL=https://your-cluster.qdrant.io  # or http://localhost:6333
 export QDRANT_API_KEY=your_key
-export QDRANT_COLLECTION=sofia_knowledge
+export QDRANT_COLLECTION_NAME=clinic_knowledge_base
 ```
 
 3. Run embedding script:
 ```bash
 node scripts/embed_knowledge_base.js
 ```
+
+This indexes all markdown files in `knowledge-base/` into Qdrant.
 
 ## Step 4: WhatsApp Business Setup
 
@@ -74,93 +85,128 @@ node scripts/embed_knowledge_base.js
 3. Add WhatsApp product
 4. Go to WhatsApp > API Setup
 5. Note down:
-   - Phone Number ID
-   - Temporary Access Token (or create permanent token)
-6. Generate a random verify token string
+   - **Phone Number ID**
+   - **Access Token** (create permanent token via System User for production)
+6. Generate a random **Verify Token** string for webhook validation
 
-## Step 5: n8n Workflow
+### For Video/Audio Transcription (Optional)
+Sofia can transcribe voice messages and videos using OpenAI Whisper. To enable:
+1. Create an HTTP Header Auth credential in n8n named `WhatsApp Bearer Token`
+2. Header Name: `Authorization`
+3. Header Value: `Bearer YOUR_WHATSAPP_ACCESS_TOKEN`
 
-1. Open your n8n instance
-2. Create credentials:
+## Step 5: n8n Credentials
 
-   **Supabase API**
-   - Host: `https://xxxxx.supabase.co`
-   - Service Role Key: `eyJxxx...`
+Open your n8n instance and create these credentials:
 
-   **OpenAI API**
-   - API Key: `sk-xxxxx`
+| Credential Type | Name | Configuration |
+|-----------------|------|---------------|
+| **Supabase API** | `supabase-creds` | Host: `https://xxxxx.supabase.co`, Service Role Key |
+| **OpenAI API** | `openai-creds` | API Key: `sk-xxxxx` |
+| **Anthropic API** | `anthropic-creds` | API Key: `sk-ant-xxxxx` |
+| **Qdrant API** | `qdrant-creds` | URL + API Key |
+| **WhatsApp Business** | `whatsapp-creds` | Phone Number ID + Access Token |
+| **Telegram API** | `telegram-creds` | Bot Token + Default Chat ID |
 
-   **Anthropic API**
-   - API Key: `sk-ant-xxxxx`
+## Step 6: Import Workflow
 
-   **HTTP Header Auth (WhatsApp)**
-   - Header Name: `Authorization`
-   - Header Value: `Bearer YOUR_WHATSAPP_ACCESS_TOKEN`
+1. Open n8n
+2. Go to **Workflows** → **Import from File**
+3. Select `workflows/sofia-alternative-flow.json`
+4. Click **Save**
+5. Update credential references in nodes (if needed)
 
-   **HTTP Header Auth (Qdrant)**
-   - Header Name: `api-key`
-   - Header Value: `YOUR_QDRANT_API_KEY`
+## Step 7: Environment Variables
 
-   **Telegram API**
-   - Bot Token: `123456789:ABC...`
-   - Default Chat ID: `-100123456789`
+Set these in n8n (Settings > Variables) or your `.env` file:
 
-3. Import `workflows/sofia-assistant.json`
-4. Update credential references in nodes
-5. Set environment variables in n8n settings:
-   - `QDRANT_URL`
-   - `QDRANT_COLLECTION`
-   - `TELEGRAM_CHAT_ID`
+```env
+# Qdrant
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_API_KEY=your_key
 
-6. Activate the workflow
-7. Copy the webhook URL: `https://your-n8n.com/webhook/whatsapp-webhook`
+# Telegram (for handoff notifications)
+TELEGRAM_CHAT_ID=-100123456789
 
-## Step 6: Configure WhatsApp Webhook
+# Human Support (optional)
+HUMAN_SUPPORT_PHONE=5511999998888
+```
 
-1. Go to Meta Developer Console > WhatsApp > Configuration
-2. Click **Edit** on Webhook
-3. Callback URL: `https://your-n8n.com/webhook/whatsapp-webhook`
-4. Verify Token: Your verify token string
-5. Subscribe to: `messages`
+## Step 8: Configure WhatsApp Webhook
 
-## Step 7: Test the Bot
+1. Activate the workflow in n8n
+2. Copy the webhook URL from the **WhatsApp Trigger** node
+3. In Meta Developer Console:
+   - Go to WhatsApp > Configuration > Webhooks
+   - Callback URL: `https://your-n8n.com/webhook/sofia-whatsapp`
+   - Verify Token: Your verify token string
+   - Subscribe to: `messages`
+
+## Step 9: Test the Bot
 
 1. Go to WhatsApp > API Setup > Send Test Message
 2. Add your phone number
-3. Send a test message to your WhatsApp Business number
-4. Check n8n execution logs
+3. Send a message to your WhatsApp Business number
+4. Check n8n execution logs for the flow
+5. Verify conversation is logged to Supabase
 
-## Step 8: Dashboard Setup
+## Step 10: Dashboard Setup (Optional)
 
-1. Deploy `dashboard/` folder to any static hosting:
-   - Vercel
-   - Netlify
-   - GitHub Pages
-   - Or just open `index.html` locally
+1. Deploy `dashboard/` folder to any static hosting (Vercel, Netlify, GitHub Pages)
+2. Or open `dashboard/index.html` locally
+3. Enter your Supabase URL and Anon Key in Settings
+4. View real-time conversation analytics
 
-2. Enter your Supabase URL and Anon Key
-3. The dashboard will auto-connect and show conversations
+## Conversation Stages
+
+Sofia guides leads through these stages:
+
+| Stage | Goal |
+|-------|------|
+| `greeting` | Welcome, get consent (LGPD) |
+| `discovery` | Understand user's goals |
+| `qualification` | Collect name, email, CEP naturally |
+| `value_building` | Explain methodology, handle objections |
+| `scheduling` | Book consultation appointment |
+| `confirmation` | Send appointment details |
+
+## Pricing Rules
+
+| Item | Sofia's Behavior |
+|------|------------------|
+| Consultation (R$700) | Can mention after building value |
+| Treatment (R$3,000+) | **NEVER** mention specific value |
+
+## Handoff Triggers
+
+Sofia escalates to human support when:
+- Pregnancy/breastfeeding mentioned
+- Serious medical conditions
+- User shows frustration (negative sentiment)
+- Direct request for human
+- Business negotiations
 
 ## Troubleshooting
 
 ### Webhook not receiving messages
-- Check n8n webhook URL is accessible
-- Verify the verify token matches
-- Check Meta app is in "Live" mode
+- Verify n8n webhook URL is publicly accessible
+- Check the verify token matches
+- Ensure Meta app is in **Live** mode (not Development)
 
 ### AI responses not working
 - Verify Anthropic API key is valid
 - Check n8n execution logs for errors
+- Ensure Claude Haiku 4.5 model ID is correct
 
 ### RAG not returning results
-- Verify Qdrant connection
+- Verify Qdrant connection and collection exists
 - Check if knowledge base was indexed
-- Try lowering score_threshold in workflow
+- Try lowering `score_threshold` in workflow
 
 ### Dashboard not connecting
-- Check Supabase URL is correct
-- Verify Anon Key has read permissions
-- Check browser console for errors
+- Verify Supabase URL is correct
+- Check Anon Key has read permissions
+- Check browser console for CORS errors
 
 ## Production Checklist
 
@@ -171,3 +217,4 @@ node scripts/embed_knowledge_base.js
 - [ ] SSL on all endpoints
 - [ ] Backup strategy for database
 - [ ] Monitoring and alerts configured
+- [ ] Meta app set to Live mode
