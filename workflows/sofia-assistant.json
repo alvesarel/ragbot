@@ -1,5 +1,5 @@
 {
-  "name": "Sofia Assistant - WhatsApp AI",
+  "name": "Sofia AI Agent - WhatsApp Assistant",
   "nodes": [
     {
       "parameters": {
@@ -11,7 +11,7 @@
       "name": "WhatsApp Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 300],
+      "position": [220, 340],
       "webhookId": "whatsapp-sofia"
     },
     {
@@ -41,7 +41,7 @@
       "name": "Is Verification?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 300]
+      "position": [440, 340]
     },
     {
       "parameters": {
@@ -50,10 +50,10 @@
         "options": {}
       },
       "id": "verify-response",
-      "name": "Verify Response",
+      "name": "Verify Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [660, 200]
+      "position": [660, 220]
     },
     {
       "parameters": {
@@ -66,7 +66,7 @@
           "conditions": [
             {
               "id": "has-messages",
-              "leftValue": "={{ $json.body.entry[0].changes[0].value.messages }}",
+              "leftValue": "={{ $json.body?.entry?.[0]?.changes?.[0]?.value?.messages }}",
               "rightValue": "",
               "operator": {
                 "type": "array",
@@ -82,7 +82,7 @@
       "name": "Has Message?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [660, 400]
+      "position": [660, 440]
     },
     {
       "parameters": {
@@ -90,146 +90,48 @@
         "options": {}
       },
       "id": "ack-webhook",
-      "name": "Acknowledge",
+      "name": "Acknowledge Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [880, 500]
+      "position": [880, 540]
     },
     {
       "parameters": {
-        "jsCode": "// Extract message data from WhatsApp webhook\nconst entry = $input.first().json.body.entry[0];\nconst change = entry.changes[0].value;\nconst message = change.messages[0];\nconst contact = change.contacts?.[0];\n\n// Get message content based on type\nlet messageContent = '';\nlet messageType = message.type;\n\nswitch (message.type) {\n  case 'text':\n    messageContent = message.text.body;\n    break;\n  case 'button':\n    messageContent = message.button.text;\n    break;\n  case 'interactive':\n    if (message.interactive.type === 'button_reply') {\n      messageContent = message.interactive.button_reply.title;\n    } else if (message.interactive.type === 'list_reply') {\n      messageContent = message.interactive.list_reply.title;\n    }\n    break;\n  case 'audio':\n    messageContent = '[Audio message received]';\n    break;\n  case 'image':\n    messageContent = message.image.caption || '[Image received]';\n    break;\n  case 'document':\n    messageContent = message.document.caption || '[Document received]';\n    break;\n  default:\n    messageContent = `[${message.type} message]`;\n}\n\nreturn {\n  phoneNumber: message.from,\n  contactName: contact?.profile?.name || 'Unknown',\n  messageId: message.id,\n  timestamp: message.timestamp,\n  messageType: messageType,\n  messageContent: messageContent,\n  phoneNumberId: change.metadata.phone_number_id,\n  businessAccountId: entry.id\n};"
+        "jsCode": "// Extract message data from WhatsApp webhook payload\nconst entry = $input.first().json.body.entry[0];\nconst change = entry.changes[0].value;\nconst message = change.messages[0];\nconst contact = change.contacts?.[0];\n\n// Get message content based on type\nlet messageContent = '';\nlet messageType = message.type;\n\nswitch (message.type) {\n  case 'text':\n    messageContent = message.text.body;\n    break;\n  case 'button':\n    messageContent = message.button.text;\n    break;\n  case 'interactive':\n    if (message.interactive.type === 'button_reply') {\n      messageContent = message.interactive.button_reply.title;\n    } else if (message.interactive.type === 'list_reply') {\n      messageContent = message.interactive.list_reply.title;\n    }\n    break;\n  case 'audio':\n    messageContent = '[Mensagem de audio recebida - por favor envie texto]';\n    break;\n  case 'image':\n    messageContent = message.image?.caption || '[Imagem recebida]';\n    break;\n  case 'document':\n    messageContent = message.document?.caption || '[Documento recebido]';\n    break;\n  case 'location':\n    messageContent = `[Localizacao: ${message.location?.latitude}, ${message.location?.longitude}]`;\n    break;\n  default:\n    messageContent = `[Mensagem tipo ${message.type}]`;\n}\n\n// Create session ID for memory (phone number based)\nconst sessionId = `whatsapp_${message.from}`;\n\nreturn {\n  sessionId: sessionId,\n  phoneNumber: message.from,\n  contactName: contact?.profile?.name || 'Desconhecido',\n  messageId: message.id,\n  timestamp: message.timestamp,\n  messageType: messageType,\n  messageContent: messageContent,\n  phoneNumberId: change.metadata.phone_number_id,\n  businessAccountId: entry.id,\n  // For the AI Agent\n  chatInput: messageContent\n};"
       },
       "id": "extract-message",
       "name": "Extract Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300]
+      "position": [880, 340]
     },
     {
       "parameters": {
-        "operation": "select",
-        "schema": {
-          "__rl": true,
-          "mode": "list",
-          "value": "public"
-        },
-        "table": {
-          "__rl": true,
-          "value": "conversations",
-          "mode": "list"
-        },
-        "returnAll": false,
-        "limit": 1,
-        "filterType": "string",
-        "filterString": "=phone_number=eq.{{ $json.phoneNumber }}"
-      },
-      "id": "load-conversation",
-      "name": "Load Conversation",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1100, 300],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-creds",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare conversation context\nconst message = $('Extract Message').first().json;\nconst existingConversation = $input.first().json;\n\nlet conversation;\nlet isNewConversation = false;\n\nif (existingConversation && existingConversation.id) {\n  // Existing conversation - update message history\n  const history = existingConversation.message_history || [];\n  history.push({\n    role: 'user',\n    content: message.messageContent,\n    timestamp: new Date().toISOString()\n  });\n  \n  // Keep last 20 messages\n  const trimmedHistory = history.slice(-20);\n  \n  conversation = {\n    ...existingConversation,\n    message_history: trimmedHistory,\n    total_messages: (existingConversation.total_messages || 0) + 1,\n    last_message_at: new Date().toISOString()\n  };\n} else {\n  // New conversation\n  isNewConversation = true;\n  conversation = {\n    id: null,\n    phone_number: message.phoneNumber,\n    contact_name: message.contactName,\n    current_stage: 'greeting',\n    status: 'active',\n    collected_data: {},\n    message_history: [{\n      role: 'user',\n      content: message.messageContent,\n      timestamp: new Date().toISOString()\n    }],\n    language: 'pt',\n    sentiment: 'neutral',\n    total_messages: 1,\n    first_contact_at: new Date().toISOString(),\n    last_message_at: new Date().toISOString()\n  };\n}\n\nreturn {\n  ...message,\n  conversation,\n  isNewConversation\n};"
-      },
-      "id": "prepare-context",
-      "name": "Prepare Context",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1320, 300]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.QDRANT_URL }}/collections/{{ $env.QDRANT_COLLECTION }}/points/search",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"vector\": {{ $json.queryEmbedding }},\n  \"limit\": 3,\n  \"with_payload\": true,\n  \"score_threshold\": 0.7\n}",
         "options": {}
       },
-      "id": "qdrant-search",
-      "name": "Search Knowledge Base",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1760, 300],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "qdrant-auth",
-          "name": "Qdrant API Key"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "model": "text-embedding-3-small",
-        "options": {}
-      },
-      "id": "embed-query",
-      "name": "Embed Query",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
-      "typeVersion": 1,
-      "position": [1540, 300],
-      "credentials": {
-        "openAiApi": {
-          "id": "openai-creds",
-          "name": "OpenAI"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare embedding request\nconst data = $input.first().json;\n\nreturn {\n  ...data,\n  textToEmbed: data.messageContent\n};"
-      },
-      "id": "prep-embedding",
-      "name": "Prep Embedding",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1540, 200]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build RAG context from search results\nconst prevData = $('Prepare Context').first().json;\nconst searchResults = $input.first().json;\n\nlet ragContext = '';\nlet chunksUsed = 0;\n\nif (searchResults.result && searchResults.result.length > 0) {\n  ragContext = searchResults.result\n    .map((r, i) => `[Knowledge ${i + 1}]\\n${r.payload.content}`)\n    .join('\\n\\n');\n  chunksUsed = searchResults.result.length;\n}\n\nreturn {\n  ...prevData,\n  ragContext,\n  chunksUsed\n};"
-      },
-      "id": "build-rag-context",
-      "name": "Build RAG Context",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1980, 300]
+      "id": "ai-agent",
+      "name": "Sofia AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1320, 340]
     },
     {
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "claude-sonnet-4-20250514",
+          "value": "claude-haiku-4-5-20241022",
           "mode": "list"
-        },
-        "messages": {
-          "values": [
-            {
-              "role": "user",
-              "content": "={{ $json.aiPrompt }}"
-            }
-          ]
         },
         "options": {
           "maxTokensToSample": 1024,
-          "systemMessage": "={{ $json.systemPrompt }}"
+          "temperature": 0.7
         }
       },
-      "id": "claude-ai",
-      "name": "Sofia AI",
+      "id": "haiku-model",
+      "name": "Claude Haiku 4.5",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.2,
-      "position": [2420, 300],
+      "position": [1140, 560],
       "credentials": {
         "anthropicApi": {
           "id": "anthropic-creds",
@@ -239,44 +141,107 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build the AI prompt with all context\nconst data = $input.first().json;\nconst conv = data.conversation;\n\n// System prompt\nconst systemPrompt = `# Sofia - Assistente Virtual\n\nVoce e Sofia, assistente virtual de uma clinica premium de emagrecimento.\n\n## Personalidade\n- Acolhedora, profissional, paciente, empatica\n- Comunicacao natural em portugues brasileiro\n- Maximo 1-2 emojis por mensagem: 💚 ✨ 😊\n- Mensagens concisas (max 3 paragrafos)\n\n## Regras de Preco\n- Consulta (R$700): PODE mencionar apos gerar valor\n- Tratamento (R$3.000+): NUNCA mencionar, redirecione para consulta\n\n## Dados a Coletar (naturalmente)\n1. Nome\n2. Email (\"para enviar informacoes\")\n3. CEP (\"para verificar unidade proxima\")\n4. Data nascimento (\"para programa ideal\")\n5. Origem (anuncio ou indicacao)\n\n## Validacoes\n- Idade < 16: recuse educadamente\n- Gravidez/amamentacao: escale para humano\n- Condicoes medicas serias: escale para humano\n\n## Escalacao (requires_handoff: true)\n- Usuario pede humano\n- Questoes medicas complexas\n- Frustracao detectada\n- Negociacao empresarial\n\n## Formato de Resposta (JSON)\n{\n  \"message\": \"sua resposta ao usuario\",\n  \"extracted_data\": {\n    \"name\": \"se detectado ou null\",\n    \"email\": \"se detectado ou null\",\n    \"cep\": \"se detectado ou null\",\n    \"date_of_birth\": \"YYYY-MM-DD ou null\",\n    \"referral_source\": \"ads|referral|null\"\n  },\n  \"new_stage\": \"greeting|discovery|qualification|value_building|scheduling|confirmation\",\n  \"action\": \"await_response|schedule_appointment|request_handoff|send_confirmation\",\n  \"requires_handoff\": false,\n  \"handoff_reason\": \"motivo se requires_handoff=true\",\n  \"sentiment\": \"positive|neutral|negative\"\n}`;\n\n// Build conversation history for context\nconst historyText = (conv.message_history || []).slice(-10)\n  .map(m => `${m.role === 'user' ? 'Usuario' : 'Sofia'}: ${m.content}`)\n  .join('\\n');\n\n// Collected data summary\nconst collectedData = conv.collected_data || {};\nconst dataText = Object.entries(collectedData)\n  .filter(([k, v]) => v)\n  .map(([k, v]) => `- ${k}: ${v}`)\n  .join('\\n') || 'Nenhum dado coletado ainda';\n\n// AI prompt\nconst aiPrompt = `## Contexto da Conversa\n- Telefone: ${conv.phone_number}\n- Nome: ${conv.contact_name || 'Desconhecido'}\n- Estagio: ${conv.current_stage}\n- Total mensagens: ${conv.total_messages}\n- Nova conversa: ${data.isNewConversation ? 'Sim' : 'Nao'}\n\n## Dados Coletados\n${dataText}\n\n## Base de Conhecimento (RAG)\n${data.ragContext || 'Nenhum contexto relevante encontrado.'}\n\n## Historico Recente\n${historyText}\n\n## Mensagem Atual\nUsuario: ${data.messageContent}\n\nResponda como Sofia, seguindo o formato JSON especificado.`;\n\nreturn {\n  ...data,\n  systemPrompt,\n  aiPrompt\n};"
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Message').item.json.sessionId }}",
+        "contextWindowLength": 20
       },
-      "id": "build-ai-prompt",
-      "name": "Build AI Prompt",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2200, 300]
+      "id": "memory-buffer",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [1280, 560]
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI response and prepare updates\nconst prevData = $('Build AI Prompt').first().json;\nconst aiResponse = $input.first().json.message.content[0].text;\n\nlet parsed;\ntry {\n  // Try to extract JSON from response\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsed = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No JSON found');\n  }\n} catch (e) {\n  // Fallback if JSON parsing fails\n  parsed = {\n    message: aiResponse,\n    extracted_data: {},\n    new_stage: prevData.conversation.current_stage,\n    action: 'await_response',\n    requires_handoff: false,\n    sentiment: 'neutral'\n  };\n}\n\n// Merge new data with existing\nconst updatedData = {\n  ...prevData.conversation.collected_data,\n  ...Object.fromEntries(\n    Object.entries(parsed.extracted_data || {}).filter(([k, v]) => v !== null)\n  )\n};\n\n// Add Sofia's response to history\nconst history = [...(prevData.conversation.message_history || [])];\nhistory.push({\n  role: 'assistant',\n  content: parsed.message,\n  timestamp: new Date().toISOString()\n});\n\nreturn {\n  phoneNumber: prevData.phoneNumber,\n  phoneNumberId: prevData.phoneNumberId,\n  conversationId: prevData.conversation.id,\n  isNewConversation: prevData.isNewConversation,\n  \n  // Response to send\n  responseMessage: parsed.message,\n  \n  // Conversation updates\n  conversationUpdate: {\n    phone_number: prevData.phoneNumber,\n    contact_name: prevData.contactName,\n    current_stage: parsed.new_stage || prevData.conversation.current_stage,\n    status: parsed.requires_handoff ? 'awaiting_human' : 'active',\n    collected_data: updatedData,\n    message_history: history.slice(-20),\n    sentiment: parsed.sentiment || 'neutral',\n    total_messages: prevData.conversation.total_messages,\n    last_message_at: new Date().toISOString(),\n    handoff_reason: parsed.requires_handoff ? parsed.handoff_reason : null\n  },\n  \n  // Flags\n  requiresHandoff: parsed.requires_handoff || false,\n  handoffReason: parsed.handoff_reason,\n  action: parsed.action,\n  chunksUsed: prevData.chunksUsed || 0\n};"
+        "name": "knowledge_base",
+        "description": "Use this tool to search the clinic's knowledge base for information about treatments, pricing, FAQ, methodology, objections handling, and compliance. Always search when the user asks about the clinic, treatments, prices, or has objections.",
+        "topK": 4
       },
-      "id": "parse-response",
-      "name": "Parse Response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2640, 300]
+      "id": "vector-store-tool",
+      "name": "Knowledge Base RAG",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1,
+      "position": [1420, 560]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v18.0/{{ $json.phoneNumberId }}/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{ $json.phoneNumber }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($json.responseMessage) }}\n  }\n}",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
         "options": {}
       },
-      "id": "send-whatsapp",
-      "name": "Send WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2860, 300],
+      "id": "qdrant-vector-store",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [1420, 740],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "whatsapp-auth",
-          "name": "WhatsApp Bearer Token"
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "embeddings-openai",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [1560, 740],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract Message').item.json.chatInput }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "# Sofia - Assistente Virtual da Clinica de Emagrecimento\n\nVoce e **Sofia**, assistente virtual de uma clinica premium de medicina do emagrecimento. Voce e uma IA conversacional que ajuda usuarios pelo WhatsApp.\n\n## Sua Personalidade\n- **Acolhedora e calorosa** - Faca o usuario se sentir bem-vindo\n- **Profissional** - Voce representa uma clinica medica seria\n- **Paciente** - Nunca apresse, colete dados naturalmente na conversa\n- **Empatica** - Reconheca a jornada e desafios do usuario\n\n## Comunicacao\n- Fale em **portugues brasileiro** natural e conversacional\n- Use **maximo 1-2 emojis** por mensagem: 💚 ✨ 😊\n- Mensagens **concisas** (maximo 3 paragrafos curtos)\n- Sempre termine com uma pergunta ou convite ao engajamento\n\n## Contexto do Usuario\n- Telefone: {{ $('Extract Message').item.json.phoneNumber }}\n- Nome do contato: {{ $('Extract Message').item.json.contactName }}\n- Tipo de mensagem: {{ $('Extract Message').item.json.messageType }}\n\n## Ferramentas Disponiveis\nVoce tem acesso a ferramenta **knowledge_base** que contem:\n- Informacoes sobre a clinica\n- Detalhes dos tratamentos e metodologia\n- FAQ com perguntas frequentes\n- Guia de tratamento de objecoes\n- Informacoes de compliance e LGPD\n\n**IMPORTANTE**: SEMPRE use a ferramenta knowledge_base quando:\n- Usuario perguntar sobre tratamentos, precos, ou metodologia\n- Usuario tiver objecoes (caro, funciona?, etc)\n- Usuario perguntar sobre a clinica\n- Precisar de informacoes especificas para responder\n\n## Regras de Preco - MUITO IMPORTANTE\n### Consulta (R$700)\n- PODE mencionar APOS gerar valor\n- Explique o que inclui: avaliacao completa, bioimpedancia, protocolo personalizado, retorno gratuito em 30 dias\n\n### Tratamento (R$3.000+)\n- **NUNCA** mencionar valor especifico\n- Redirecione: \"O investimento varia conforme o protocolo indicado para cada caso. Na consulta o medico avalia e discutimos isso de forma transparente.\"\n\n## Dados a Coletar (Naturalmente na Conversa)\n1. **Nome** - Obtenha cedo e use durante a conversa\n2. **Email** - \"Para enviar mais informacoes...\"\n3. **CEP** - \"Para verificar a unidade mais proxima...\"\n4. **Data de nascimento** - \"Para indicar o programa ideal...\"\n5. **Como conheceu** - \"Como nos encontrou?\" (anuncio/indicacao)\n\n**Validacao de Idade**: Se idade < 16 anos, recuse educadamente.\n\n## Estagios da Conversa\n1. **greeting** - Boas-vindas, mencione LGPD brevemente\n2. **discovery** - Entender objetivos e tentativas anteriores\n3. **qualification** - Coletar dados de contato\n4. **value_building** - Explicar metodologia, tratar objecoes\n5. **scheduling** - Verificar disponibilidade e agendar\n6. **confirmation** - Confirmar e preparar para consulta\n\n## Quando Escalar para Humano\nInforme que vai transferir quando:\n- Gravidez ou amamentacao\n- Condicoes serias (diabetes descompensada, cardiaco grave)\n- Usuario frustrado ou pede humano explicitamente\n- Negociacao empresarial ou parceria\n- 3+ mensagens negativas consecutivas\n\nDiga: \"Vou transferir voce para nossa equipe especializada que podera ajudar melhor. Um momento! 💚\"\n\n## Primeira Mensagem (Novo Usuario)\nSe parecer ser o primeiro contato, use:\n\"Ola! 👋 Sou a Sofia, assistente virtual da clinica.\n\nEstou aqui para ajudar com informacoes sobre nossos tratamentos e agendar sua consulta.\n\nSuas mensagens sao processadas com IA e protegidas conforme a LGPD.\n\nComo posso ajudar voce hoje? 💚\"\n\n## Diretrizes Finais\n- Use o knowledge_base para dar informacoes precisas\n- NUNCA invente informacoes medicas\n- Quando em duvida, seja empatica e ofereca ajuda\n- Lembre do contexto da conversa anterior (memoria)\n- Seja natural, nao parecendo um formulario\n- Cada interacao e uma oportunidade de ajudar alguem"
+        }
+      },
+      "id": "agent-prompt",
+      "name": "Agent Prompt",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [1100, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare response for WhatsApp sending\nconst extractedData = $('Extract Message').first().json;\nconst agentResponse = $input.first().json;\n\n// Get the AI response text\nlet responseText = agentResponse.output || agentResponse.text || '';\n\n// Clean up response if needed (remove any JSON artifacts)\nresponseText = responseText.trim();\n\n// Check for handoff indicators\nconst handoffPhrases = [\n  'transferir voce',\n  'equipe especializada',\n  'atendente humano',\n  'nossa equipe',\n  'um momento'\n];\nconst requiresHandoff = handoffPhrases.some(phrase => \n  responseText.toLowerCase().includes(phrase)\n);\n\nreturn {\n  phoneNumber: extractedData.phoneNumber,\n  phoneNumberId: extractedData.phoneNumberId,\n  contactName: extractedData.contactName,\n  sessionId: extractedData.sessionId,\n  responseMessage: responseText,\n  requiresHandoff: requiresHandoff,\n  originalMessage: extractedData.messageContent\n};"
+      },
+      "id": "prepare-response",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 340]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "phoneNumberId": "={{ $json.phoneNumberId }}",
+        "recipientPhoneNumber": "={{ $json.phoneNumber }}",
+        "textBody": "={{ $json.responseMessage }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Send WhatsApp Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1780, 340],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
         }
       }
     },
@@ -290,8 +255,8 @@
           },
           "conditions": [
             {
-              "id": "is-new",
-              "leftValue": "={{ $('Parse Response').first().json.isNewConversation }}",
+              "id": "needs-handoff",
+              "leftValue": "={{ $('Prepare Response').first().json.requiresHandoff }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -303,75 +268,29 @@
         },
         "options": {}
       },
-      "id": "is-new-conversation",
-      "name": "New Conversation?",
+      "id": "check-handoff",
+      "name": "Needs Handoff?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [3080, 300]
+      "position": [2000, 340]
     },
     {
       "parameters": {
-        "operation": "insert",
-        "schema": {
-          "__rl": true,
-          "mode": "list",
-          "value": "public"
-        },
-        "table": {
-          "__rl": true,
-          "value": "conversations",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": "={{ $('Parse Response').first().json.conversationUpdate }}",
-          "matchingColumns": [],
-          "schema": []
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=🚨 *Escalacao Necessaria*\n\n📱 *Telefone:* {{ $('Prepare Response').first().json.phoneNumber }}\n👤 *Nome:* {{ $('Prepare Response').first().json.contactName }}\n\n💬 *Ultima mensagem do usuario:*\n{{ $('Prepare Response').first().json.originalMessage }}\n\n🤖 *Resposta da Sofia:*\n{{ $('Prepare Response').first().json.responseMessage }}\n\n_Responda diretamente pelo WhatsApp._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
         }
       },
-      "id": "insert-conversation",
-      "name": "Insert Conversation",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [3300, 200],
+      "id": "telegram-handoff",
+      "name": "Notify Team (Telegram)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2220, 240],
       "credentials": {
-        "supabaseApi": {
-          "id": "supabase-creds",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "schema": {
-          "__rl": true,
-          "mode": "list",
-          "value": "public"
-        },
-        "table": {
-          "__rl": true,
-          "value": "conversations",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": "={{ $('Parse Response').first().json.conversationUpdate }}",
-          "matchingColumns": ["phone_number"],
-          "schema": []
-        },
-        "filterType": "string",
-        "filterString": "=phone_number=eq.{{ $('Parse Response').first().json.phoneNumber }}"
-      },
-      "id": "update-conversation",
-      "name": "Update Conversation",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [3300, 400],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-creds",
-          "name": "Supabase"
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
         }
       }
     },
@@ -391,74 +310,28 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "phone_number": "={{ $('Parse Response').first().json.phoneNumber }}",
-            "direction": "outbound",
-            "content": "={{ $('Parse Response').first().json.responseMessage }}",
-            "rag_chunks_used": "={{ $('Parse Response').first().json.chunksUsed }}",
-            "stage_at_time": "={{ $('Parse Response').first().json.conversationUpdate.current_stage }}"
+            "phone_number": "={{ $('Prepare Response').first().json.phoneNumber }}",
+            "contact_name": "={{ $('Prepare Response').first().json.contactName }}",
+            "direction": "both",
+            "user_message": "={{ $('Prepare Response').first().json.originalMessage }}",
+            "bot_response": "={{ $('Prepare Response').first().json.responseMessage }}",
+            "session_id": "={{ $('Prepare Response').first().json.sessionId }}",
+            "requires_handoff": "={{ $('Prepare Response').first().json.requiresHandoff }}",
+            "created_at": "={{ new Date().toISOString() }}"
           },
           "matchingColumns": [],
           "schema": []
         }
       },
       "id": "log-message",
-      "name": "Log Message",
+      "name": "Log to Database",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [3520, 300],
+      "position": [2220, 440],
       "credentials": {
         "supabaseApi": {
           "id": "supabase-creds",
           "name": "Supabase"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "needs-handoff",
-              "leftValue": "={{ $('Parse Response').first().json.requiresHandoff }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-handoff",
-      "name": "Needs Handoff?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [3740, 300]
-    },
-    {
-      "parameters": {
-        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
-        "text": "=🚨 *Escalacao Necessaria*\n\n📱 *Telefone:* {{ $('Parse Response').first().json.phoneNumber }}\n👤 *Nome:* {{ $('Parse Response').first().json.conversationUpdate.contact_name || 'Desconhecido' }}\n📝 *Motivo:* {{ $('Parse Response').first().json.handoffReason || 'Solicitacao do usuario' }}\n\nResponda diretamente pelo WhatsApp.",
-        "additionalFields": {
-          "parse_mode": "Markdown"
-        }
-      },
-      "id": "telegram-handoff",
-      "name": "Notify Handoff",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [3960, 200],
-      "credentials": {
-        "telegramApi": {
-          "id": "telegram-creds",
-          "name": "Telegram Bot"
         }
       }
     },
@@ -468,7 +341,7 @@
       "name": "End",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [3960, 400]
+      "position": [2440, 340]
     }
   ],
   "connections": {
@@ -487,7 +360,7 @@
       "main": [
         [
           {
-            "node": "Verify Response",
+            "node": "Verify Webhook",
             "type": "main",
             "index": 0
           }
@@ -510,7 +383,7 @@
             "index": 0
           },
           {
-            "node": "Acknowledge",
+            "node": "Acknowledge Webhook",
             "type": "main",
             "index": 0
           }
@@ -522,164 +395,36 @@
       "main": [
         [
           {
-            "node": "Load Conversation",
+            "node": "Sofia AI Agent",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Load Conversation": {
+    "Sofia AI Agent": {
       "main": [
         [
           {
-            "node": "Prepare Context",
+            "node": "Prepare Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Context": {
+    "Prepare Response": {
       "main": [
         [
           {
-            "node": "Prep Embedding",
+            "node": "Send WhatsApp Message",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prep Embedding": {
-      "main": [
-        [
-          {
-            "node": "Embed Query",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Embed Query": {
-      "main": [
-        [
-          {
-            "node": "Search Knowledge Base",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Search Knowledge Base": {
-      "main": [
-        [
-          {
-            "node": "Build RAG Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build RAG Context": {
-      "main": [
-        [
-          {
-            "node": "Build AI Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build AI Prompt": {
-      "main": [
-        [
-          {
-            "node": "Sofia AI",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Sofia AI": {
-      "main": [
-        [
-          {
-            "node": "Parse Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Response": {
-      "main": [
-        [
-          {
-            "node": "Send WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send WhatsApp": {
-      "main": [
-        [
-          {
-            "node": "New Conversation?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "New Conversation?": {
-      "main": [
-        [
-          {
-            "node": "Insert Conversation",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Update Conversation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Insert Conversation": {
-      "main": [
-        [
-          {
-            "node": "Log Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Conversation": {
-      "main": [
-        [
-          {
-            "node": "Log Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Log Message": {
+    "Send WhatsApp Message": {
       "main": [
         [
           {
@@ -694,15 +439,92 @@
       "main": [
         [
           {
-            "node": "Notify Handoff",
+            "node": "Notify Team (Telegram)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
+            "node": "Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Team (Telegram)": {
+      "main": [
+        [
+          {
+            "node": "Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Database": {
+      "main": [
+        [
+          {
             "node": "End",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sofia AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
             "index": 0
           }
         ]
@@ -723,13 +545,17 @@
       "id": "2"
     },
     {
-      "name": "Production",
+      "name": "AI Agent",
       "id": "3"
+    },
+    {
+      "name": "RAG",
+      "id": "4"
     }
   ],
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "sofia-assistant"
+    "instanceId": "sofia-ai-agent"
   }
 }
