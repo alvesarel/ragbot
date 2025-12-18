@@ -1,0 +1,1361 @@
+{
+  "name": "Diana - Patient Check-in AI Agent",
+  "meta": {
+    "instanceId": "patient-checkin-tirzepatide",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Weekly Check-in Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [220, 340],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": ["saturday"],
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "get-patients",
+      "name": "Get Active Patients",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [440, 340],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "DEFAULT"
+            }
+          }
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "filter-active-patients",
+      "name": "Filter Active Patients",
+      "type": "n8n-nodes-base.filter",
+      "position": [660, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ parseInt($json['REMAINING_WEEKS']) }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "prepare-patient-context",
+      "name": "Prepare Patient Context",
+      "type": "n8n-nodes-base.code",
+      "position": [880, 340],
+      "parameters": {
+        "jsCode": "// Prepare patient context for AI agent\nconst patient = $input.first().json;\n\n// Parse dates\nconst startDate = new Date(patient.STARTING_DATE);\nconst today = new Date();\nconst weekNumber = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;\n\n// Check treatment status\nconst remainingWeeks = parseInt(patient.REMAINING_WEEKS);\nconst isTwoWeeksRemaining = remainingWeeks === 2;\nconst isLastWeek = remainingWeeks === 1;\nconst needsRenewalReminder = isTwoWeeksRemaining || isLastWeek;\n\n// Format phone number for WhatsApp\nlet phone = patient.PHONE.toString().replace(/\\D/g, '');\nif (!phone.startsWith('55')) {\n  phone = '55' + phone;\n}\n\nreturn {\n  json: {\n    patientName: patient.NAME,\n    phone: phone,\n    currentDose: patient.CURRENT_DOSE,\n    remainingWeeks: remainingWeeks,\n    totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n    weekNumber: weekNumber,\n    startDate: patient.STARTING_DATE,\n    paymentMethod: patient.PAYMENT_METHOD,\n    lastPayment: patient.LAST_PAYMENT,\n    notes: patient.NOTES || '',\n    isTwoWeeksRemaining: isTwoWeeksRemaining,\n    isLastWeek: isLastWeek,\n    needsRenewalReminder: needsRenewalReminder,\n    rowNumber: patient._rowNumber || patient.row_number\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "checkin-ai-agent",
+      "name": "Check-in AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1100, 340],
+      "parameters": {
+        "text": "Generate a personalized weekly check-in message for this patient:\n\n**Patient Name:** {{ $json.patientName }}\n**Current Week:** {{ $json.weekNumber }} of {{ $json.totalWeeks }}\n**Remaining Weeks:** {{ $json.remainingWeeks }}\n**Current Dose:** {{ $json.currentDose }}\n**Is Two Weeks Remaining:** {{ $json.isTwoWeeksRemaining }}\n**Is Last Week:** {{ $json.isLastWeek }}\n**Needs Renewal Reminder:** {{ $json.needsRenewalReminder }}\n**Previous Notes:** {{ $json.notes }}\n\nGenerate a warm, professional WhatsApp check-in message in Portuguese (Brazil). Include:\n1. Greeting with their name\n2. Reminder of their current Tirzepatide dose ({{ $json.currentDose }})\n3. How many weeks remaining in their treatment ({{ $json.remainingWeeks }})\n4. Ask how they are feeling this week\n5. Ask about any side effects (nausea, fatigue, injection site reactions)\n6. Ask if they need anything or have questions\n\nIf TWO WEEKS REMAINING ({{ $json.isTwoWeeksRemaining }}):\n- Remind them their treatment plan is nearing completion\n- Ask if they would like to discuss renewal options\n- Mention the team will reach out to discuss next steps\n\nIf LAST WEEK ({{ $json.isLastWeek }}):\n- This is their final week of treatment\n- Ask about their experience and results\n- Ask if they wish to renew their treatment plan\n- Inform them the team will be in touch to discuss renewal",
+        "options": {
+          "systemMessage": "You are Diana, a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Identity\nYour name is Diana. You are a virtual assistant for the clinic.\n\n## Your Role\n- Send personalized weekly check-in messages via WhatsApp\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese (switch to English if patient writes in English)\n- Keep messages concise (max 3-4 short paragraphs)\n- DO NOT use emojis in your messages\n\n## Message Guidelines\n- Always address patient by name\n- Always mention their current dose clearly\n- Always state remaining weeks in treatment\n- Ask open-ended questions about well-being\n- Encourage them to report any side effects\n- Remind them the medical team is available for questions\n\n## Treatment Plans Available\n- 4 weeks (starter)\n- 12 weeks (standard)\n- 16 weeks (extended)\n\n## Common Tirzepatide Side Effects to Ask About\n- Nausea or stomach discomfort\n- Fatigue or tiredness\n- Injection site reactions (redness, itching)\n- Changes in appetite\n- Constipation or diarrhea\n\n## Renewal Reminders\n- If REMAINING_WEEKS is 2: First renewal reminder - inform patient their plan is ending soon and ask if they want to renew\n- If REMAINING_WEEKS is 1: Final reminder - this is their last week, ask about renewal interest, team will follow up\n\n## IMPORTANT\n- Never provide medical advice\n- Always encourage contacting the doctor for concerns\n- Be supportive of their weight loss journey\n- Reference the knowledge base for accurate treatment information\n- NO EMOJIS - keep messages professional and clean"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model-checkin",
+      "name": "Claude Haiku 4.5 (Check-in)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1100, 560],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "memory-checkin",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [1240, 560],
+      "parameters": {
+        "sessionKey": "=checkin-{{ $json.phone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "rag-tool-checkin",
+      "name": "Tirzepatide Knowledge Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [1380, 560],
+      "parameters": {
+        "name": "tirzepatide_knowledge",
+        "description": "Search the knowledge base for information about Tirzepatide treatment, dosage schedules, side effects, and patient care guidelines. Use when you need accurate medical information.",
+        "topK": 3
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-checkin",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [1380, 740],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-checkin",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [1520, 740],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-rag",
+      "name": "OpenAI Chat Model (RAG)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1660, 740],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-checkin-whatsapp",
+      "name": "Send Check-in Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [1340, 340],
+      "parameters": {
+        "textBody": "={{ $json.output }}",
+        "operation": "send",
+        "phoneNumberId": "={{ $env.WHATSAPP_PHONE_NUMBER_ID }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('Prepare Patient Context').item.json.phone }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "log-checkin",
+      "name": "Log Check-in to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1560, 340],
+      "parameters": {
+        "operation": "append",
+        "sheetName": {
+          "__rl": true,
+          "value": "CheckInLog",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "PATIENT_NAME": "={{ $('Prepare Patient Context').item.json.patientName }}",
+            "PHONE": "={{ $('Prepare Patient Context').item.json.phone }}",
+            "WEEK_NUMBER": "={{ $('Prepare Patient Context').item.json.weekNumber }}",
+            "DOSE_AT_CHECKIN": "={{ $('Prepare Patient Context').item.json.currentDose }}",
+            "REMAINING_WEEKS": "={{ $('Prepare Patient Context').item.json.remainingWeeks }}",
+            "MESSAGE_SENT": "={{ $('Check-in AI Agent').item.json.output }}",
+            "STATUS": "sent",
+            "RESPONSE": "",
+            "SIDE_EFFECTS_REPORTED": "",
+            "FOLLOW_UP_NEEDED": ""
+          }
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "update-remaining-weeks",
+      "name": "Deduct Remaining Week",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1780, 340],
+      "parameters": {
+        "operation": "update",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REMAINING_WEEKS": "={{ $('Prepare Patient Context').item.json.remainingWeeks - 1 }}",
+            "NOTES": "={{ 'Last check-in: ' + $now.format('yyyy-MM-dd') + ' | ' + ($('Prepare Patient Context').item.json.notes || '') }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        },
+        "matchingColumns": ["NAME"]
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-treatment-ending",
+      "name": "Check Treatment Status",
+      "type": "n8n-nodes-base.switch",
+      "position": [2000, 340],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Last Week - Complete",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isLastWeek }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Two Weeks - Notify",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isTwoWeeksRemaining }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Treatment Ongoing",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.needsRenewalReminder }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "mark-treatment-complete",
+      "name": "Mark Treatment Complete",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2220, 240],
+      "parameters": {
+        "operation": "update",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "NOTES": "={{ 'TREATMENT COMPLETED: ' + $now.format('yyyy-MM-dd') + ' | ' + ($('Prepare Patient Context').item.json.notes || '') }}",
+            "STATUS": "completed"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        },
+        "matchingColumns": ["NAME"]
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "notify-team-final-week",
+      "name": "Notify Team - Final Week",
+      "type": "n8n-nodes-base.telegram",
+      "position": [2440, 180],
+      "parameters": {
+        "text": "=**TREATMENT COMPLETED - Final Week**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCompleted Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nFinal Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Required:**\nContact patient to discuss renewal options.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "notify-team-two-weeks",
+      "name": "Notify Team - 2 Weeks Remaining",
+      "type": "n8n-nodes-base.telegram",
+      "position": [2220, 420],
+      "parameters": {
+        "text": "=**Renewal Reminder - 2 Weeks Remaining**\n\nPatient: {{ $('Prepare Patient Context').item.json.patientName }}\nPhone: {{ $('Prepare Patient Context').item.json.phone }}\nCurrent Plan: {{ $('Prepare Patient Context').item.json.totalWeeks }} weeks\nRemaining: 2 weeks (after this check-in: 1 week)\nCurrent Dose: {{ $('Prepare Patient Context').item.json.currentDose }}\nPayment Method: {{ $('Prepare Patient Context').item.json.paymentMethod }}\nLast Payment: {{ $('Prepare Patient Context').item.json.lastPayment }}\n\n**Action Suggested:**\nReach out to discuss renewal options before treatment ends.\nAvailable plans: 4, 12, or 16 weeks.\n\nNotes: {{ $('Prepare Patient Context').item.json.notes || 'None' }}",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "whatsapp-trigger-response",
+      "name": "WhatsApp Response Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "position": [220, 700],
+      "webhookId": "patient-checkin-webhook",
+      "parameters": {
+        "updates": ["messages"]
+      },
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "whatsapp-trigger-creds",
+          "name": "WhatsApp OAuth account"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "handle-response-type",
+      "name": "Handle Response Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [440, 700],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Text Message",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Unsupported",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "lookup-patient",
+      "name": "Lookup Patient",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [660, 700],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "PHONE",
+              "lookupValue": "={{ $json.messages[0].from.replace(/^55/, '') }}"
+            }
+          ]
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-patient-exists",
+      "name": "Is Known Patient?",
+      "type": "n8n-nodes-base.if",
+      "position": [880, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              },
+              "leftValue": "={{ $json.NAME }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "prepare-response-context",
+      "name": "Prepare Response Context",
+      "type": "n8n-nodes-base.code",
+      "position": [1100, 600],
+      "parameters": {
+        "jsCode": "// Prepare context for handling patient response\nconst patient = $input.first().json;\nconst whatsappData = $('WhatsApp Response Trigger').item.json;\n\n// Format phone number\nlet phone = whatsappData.messages[0].from;\n\nreturn {\n  json: {\n    messageText: whatsappData.messages[0].text.body,\n    patientName: patient.NAME,\n    phone: phone,\n    currentDose: patient.CURRENT_DOSE,\n    remainingWeeks: parseInt(patient.REMAINING_WEEKS),\n    totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n    notes: patient.NOTES || '',\n    phoneNumberId: whatsappData.metadata?.phone_number_id\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "response-ai-agent",
+      "name": "Response AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1320, 600],
+      "parameters": {
+        "text": "Patient {{ $json.patientName }} (Dose: {{ $json.currentDose }}, {{ $json.remainingWeeks }} weeks remaining) sent this message:\n\n\"{{ $json.messageText }}\"\n\nRespond appropriately. If they report side effects, acknowledge and advise consulting their doctor if severe. If they have questions, answer based on the knowledge base. Always be supportive and professional.",
+        "options": {
+          "systemMessage": "You are Diana, a caring medical assistant helping with patient check-ins for a Tirzepatide (Mounjaro) weight loss treatment program.\n\n## Your Identity\nYour name is Diana. You are a virtual assistant for the clinic.\n\n## Your Role\n- Respond to patient messages during their weekly check-in\n- Be warm, professional, and empathetic\n- Use Brazilian Portuguese (switch to English if patient writes in English)\n- Keep messages concise (max 2-3 short paragraphs)\n- DO NOT use emojis in your messages\n\n## Response Guidelines\n- Always address patient by name\n- Acknowledge their concerns or feedback\n- For side effects: validate their experience, ask follow-up questions, recommend contacting doctor if severe\n- For questions: answer from knowledge base when possible\n- For positive feedback: acknowledge their progress supportively\n\n## Treatment Plans Available\n- 4 weeks (starter)\n- 12 weeks (standard)\n- 16 weeks (extended)\n\n## Side Effects Response Protocol\nCommon side effects to acknowledge:\n- Nausea: normal at start, usually improves. Stay hydrated.\n- Fatigue: common, should improve. Rest when needed.\n- Injection site reactions: normal, should resolve. If persistent, contact doctor.\n- Appetite changes: expected effect of medication.\n- GI issues: eat smaller meals, avoid fatty foods.\n\nIf severe symptoms reported (persistent vomiting, severe pain, allergic reaction):\n- Express concern\n- Strongly recommend contacting the medical team immediately\n- Provide the clinic contact information\n\n## When to Escalate\nFlag for human follow-up if:\n- Severe side effects reported\n- Patient wants to stop treatment\n- Patient requests medical advice beyond scope\n- Patient seems distressed\n- Patient asks about renewal (handoff to team)\n\n## IMPORTANT\n- Never provide specific medical advice\n- Always encourage contacting the doctor for health concerns\n- Be supportive of their weight loss journey\n- Log any concerns mentioned for follow-up\n- NO EMOJIS - keep messages professional and clean"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model-response",
+      "name": "Claude Haiku 4.5 (Response)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1320, 820],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "memory-response",
+      "name": "Window Buffer Memory (Response)",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [1460, 820],
+      "parameters": {
+        "sessionKey": "=checkin-{{ $json.phone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "rag-tool-response",
+      "name": "Tirzepatide Knowledge (Response)",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [1600, 820],
+      "parameters": {
+        "name": "tirzepatide_knowledge",
+        "description": "Search the knowledge base for information about Tirzepatide treatment, dosage schedules, side effects, and patient care guidelines.",
+        "topK": 3
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-response",
+      "name": "Qdrant Vector Store (Response)",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [1600, 1000],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-response",
+      "name": "OpenAI Embeddings (Response)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [1740, 1000],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-response-rag",
+      "name": "OpenAI Chat Model (Response RAG)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1880, 1000],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-response-whatsapp",
+      "name": "Send Response to Patient",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [1560, 600],
+      "parameters": {
+        "textBody": "={{ $json.output }}",
+        "operation": "send",
+        "phoneNumberId": "={{ $('Prepare Response Context').item.json.phoneNumberId }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('Prepare Response Context').item.json.phone }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "analyze-response",
+      "name": "Analyze Response",
+      "type": "n8n-nodes-base.code",
+      "position": [1780, 600],
+      "parameters": {
+        "jsCode": "// Analyze patient response for side effects and concerns\nconst context = $('Prepare Response Context').item.json;\nconst messageText = context.messageText.toLowerCase();\n\n// Side effect keywords\nconst sideEffectKeywords = [\n  'nausea', 'enjoo', 'nauseas',\n  'vomito', 'vomitando',\n  'dor', 'doendo', 'dores',\n  'cansaco', 'cansada', 'cansado', 'fadiga',\n  'tontura', 'tonto', 'tonta',\n  'diarreia', 'prisao de ventre', 'constipacao',\n  'vermelhidao', 'inchaco', 'coceira',\n  'mal estar', 'mal-estar',\n  'efeito colateral', 'efeitos colaterais',\n  'reacao', 'reacoes'\n];\n\n// Concern keywords\nconst concernKeywords = [\n  'parar', 'desistir', 'cancelar',\n  'nao funciona', 'nao esta funcionando',\n  'preocupado', 'preocupada', 'preocupacao',\n  'medo', 'receio',\n  'grave', 'serio', 'urgente',\n  'medico', 'emergencia',\n  'ajuda', 'socorro'\n];\n\nconst hasSideEffects = sideEffectKeywords.some(keyword => messageText.includes(keyword));\nconst hasConcerns = concernKeywords.some(keyword => messageText.includes(keyword));\nconst needsFollowUp = hasSideEffects || hasConcerns;\n\n// Extract mentioned side effects\nconst mentionedSideEffects = sideEffectKeywords.filter(keyword => messageText.includes(keyword));\n\nreturn {\n  json: {\n    patientName: context.patientName,\n    phone: context.phone,\n    currentDose: context.currentDose,\n    remainingWeeks: context.remainingWeeks,\n    messageText: context.messageText,\n    responseText: $('Response AI Agent').item.json.output,\n    hasSideEffects: hasSideEffects,\n    hasConcerns: hasConcerns,\n    needsFollowUp: needsFollowUp,\n    mentionedSideEffects: mentionedSideEffects.join(', '),\n    analysisDate: new Date().toISOString()\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "update-checkin-log",
+      "name": "Update Check-in Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2000, 600],
+      "parameters": {
+        "operation": "append",
+        "sheetName": {
+          "__rl": true,
+          "value": "CheckInLog",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "PATIENT_NAME": "={{ $json.patientName }}",
+            "PHONE": "={{ $json.phone }}",
+            "WEEK_NUMBER": "",
+            "DOSE_AT_CHECKIN": "={{ $json.currentDose }}",
+            "REMAINING_WEEKS": "={{ $json.remainingWeeks }}",
+            "MESSAGE_SENT": "RESPONSE",
+            "STATUS": "response_received",
+            "RESPONSE": "={{ $json.messageText }}",
+            "SIDE_EFFECTS_REPORTED": "={{ $json.mentionedSideEffects }}",
+            "FOLLOW_UP_NEEDED": "={{ $json.needsFollowUp ? 'YES' : 'NO' }}"
+          }
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENT_SHEET_ID }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-followup-needed",
+      "name": "Needs Follow-up?",
+      "type": "n8n-nodes-base.if",
+      "position": [2220, 600],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.needsFollowUp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "notify-team-followup",
+      "name": "Notify Team - Follow-up Needed",
+      "type": "n8n-nodes-base.telegram",
+      "position": [2440, 500],
+      "parameters": {
+        "text": "=**Patient Follow-up Required**\n\nPatient: {{ $json.patientName }}\nPhone: {{ $json.phone }}\nCurrent Dose: {{ $json.currentDose }}\nWeeks Remaining: {{ $json.remainingWeeks }}\n\n**Patient Message:**\n{{ $json.messageText }}\n\n**Side Effects Mentioned:** {{ $json.mentionedSideEffects || 'None detected' }}\n**Concerns Detected:** {{ $json.hasConcerns ? 'Yes' : 'No' }}\n\nPlease contact patient to follow up.",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "reply-unknown-patient",
+      "name": "Reply Unknown Patient",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [1100, 800],
+      "parameters": {
+        "textBody": "Ola! Este numero nao esta cadastrado em nosso sistema de acompanhamento. Se voce e paciente da clinica e deseja suporte, por favor entre em contato com nossa equipe para atualizar seu cadastro. Obrigado!",
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Response Trigger').item.json.metadata?.phone_number_id }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('WhatsApp Response Trigger').item.json.messages[0].from }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "reply-unsupported-response",
+      "name": "Reply Unsupported Type",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [660, 880],
+      "parameters": {
+        "textBody": "Ola! No momento, consigo processar apenas mensagens de texto. Por favor, escreva sua mensagem e responderei em seguida!",
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Response Trigger').item.json.metadata?.phone_number_id }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $('WhatsApp Response Trigger').item.json.messages[0].from }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-overview",
+      "name": "Workflow Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 60],
+      "parameters": {
+        "color": 7,
+        "width": 600,
+        "height": 260,
+        "content": "## Diana - Patient Check-in AI Agent\n\nDiana is an AI assistant that manages weekly check-ins for patients on Tirzepatide (Mounjaro) treatment plans.\n\n### Features:\n- **Scheduled Weekly Check-ins** - Saturdays at 11 AM\n- **Google Sheets Integration** - Patient data and interaction logs\n- **AI-Powered (Claude Haiku 4.5)** - Professional, no emojis\n- **Memory** - 10-message context per patient\n- **Side Effect Detection** - Flags concerns for follow-up\n- **Treatment Tracking** - Auto-deducts remaining weeks\n- **Renewal Flow:**\n  - 2 weeks remaining → Team notified for outreach\n  - Last week → Mark complete + Team notified\n- **Team Handoff** - Telegram alerts with full patient info\n\n### Treatment Plans: 4, 12, or 16 weeks\n\n### Required Credentials:\n- Google Sheets OAuth, WhatsApp Business, Anthropic, OpenAI, Qdrant, Telegram"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-outbound",
+      "name": "Outbound Flow",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 480],
+      "parameters": {
+        "color": 5,
+        "width": 300,
+        "height": 80,
+        "content": "### Outbound Check-in Flow\nTriggered weekly on schedule. Sends check-in messages to all active patients."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-inbound",
+      "name": "Inbound Flow",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 840],
+      "parameters": {
+        "color": 4,
+        "width": 300,
+        "height": 80,
+        "content": "### Inbound Response Flow\nHandles patient responses to check-ins. Analyzes for side effects and concerns."
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Weekly Check-in Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Active Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Patients": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Patients": {
+      "main": [
+        [
+          {
+            "node": "Prepare Patient Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Patient Context": {
+      "main": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check-in AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Check-in Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5 (Check-in)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tirzepatide Knowledge Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Tirzepatide Knowledge Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (RAG)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Tirzepatide Knowledge Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Check-in Message": {
+      "main": [
+        [
+          {
+            "node": "Log Check-in to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Check-in to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Deduct Remaining Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduct Remaining Week": {
+      "main": [
+        [
+          {
+            "node": "Check Treatment Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Treatment Status": {
+      "main": [
+        [
+          {
+            "node": "Mark Treatment Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Team - 2 Weeks Remaining",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Mark Treatment Complete": {
+      "main": [
+        [
+          {
+            "node": "Notify Team - Final Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Response Trigger": {
+      "main": [
+        [
+          {
+            "node": "Handle Response Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Response Type": {
+      "main": [
+        [
+          {
+            "node": "Lookup Patient",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Patient": {
+      "main": [
+        [
+          {
+            "node": "Is Known Patient?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Known Patient?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unknown Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response Context": {
+      "main": [
+        [
+          {
+            "node": "Response AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Response to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5 (Response)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Response AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory (Response)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Response AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tirzepatide Knowledge (Response)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Response AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store (Response)": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Tirzepatide Knowledge (Response)",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings (Response)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store (Response)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (Response RAG)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Tirzepatide Knowledge (Response)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Response to Patient": {
+      "main": [
+        [
+          {
+            "node": "Analyze Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Response": {
+      "main": [
+        [
+          {
+            "node": "Update Check-in Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Check-in Log": {
+      "main": [
+        [
+          {
+            "node": "Needs Follow-up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Follow-up?": {
+      "main": [
+        [
+          {
+            "node": "Notify Team - Follow-up Needed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Patient Check-in",
+      "id": "10"
+    },
+    {
+      "name": "Tirzepatide",
+      "id": "11"
+    },
+    {
+      "name": "WhatsApp",
+      "id": "2"
+    },
+    {
+      "name": "AI Agent",
+      "id": "3"
+    },
+    {
+      "name": "Google Sheets",
+      "id": "12"
+    },
+    {
+      "name": "Haiku",
+      "id": "5"
+    }
+  ],
+  "pinData": {}
+}
