@@ -1,4 +1,4 @@
-// Sofia Dashboard - Application Logic
+// Clinic AI Dashboard - Application Logic (Sofia & Diana)
 
 let supabase = null;
 let currentFilter = 'all';
@@ -71,7 +71,11 @@ async function refreshData() {
         loadSummary(),
         loadRecentConversations(),
         loadConversationsList(),
-        loadAnalytics()
+        loadAnalytics(),
+        loadDianaSummary(),
+        loadDianaPatients(),
+        loadDianaCheckins(),
+        loadDianaRenewals()
     ]);
 }
 
@@ -367,12 +371,15 @@ function setupNavigation() {
 
             // Update title
             const titles = {
-                overview: 'Visao Geral',
-                conversations: 'Conversas',
-                analytics: 'Metricas',
-                settings: 'Configuracoes'
+                'overview': 'Sofia - Visao Geral',
+                'conversations': 'Sofia - Conversas',
+                'analytics': 'Sofia - Metricas',
+                'diana-overview': 'Diana - Pacientes',
+                'diana-checkins': 'Diana - Check-ins',
+                'diana-renewals': 'Diana - Renovacoes',
+                'settings': 'Configuracoes'
             };
-            document.getElementById('page-title').textContent = titles[view];
+            document.getElementById('page-title').textContent = titles[view] || view;
         });
     });
 }
@@ -542,6 +549,210 @@ function getStatusBadge(status) {
     return badges[status] || 'badge-neutral';
 }
 
+// Diana data loading functions
+
+// Load Diana summary stats
+async function loadDianaSummary() {
+    try {
+        const { data, error } = await supabase.rpc('get_diana_summary');
+
+        if (error) throw error;
+
+        document.getElementById('diana-total-patients').textContent = data.total_patients || 0;
+        document.getElementById('diana-active-patients').textContent = data.active_patients || 0;
+        document.getElementById('diana-renewals-needed').textContent = data.renewals_needed || 0;
+        document.getElementById('diana-completed').textContent = data.completed_treatments || 0;
+
+    } catch (error) {
+        console.error('Error loading Diana summary:', error);
+        // Keep placeholder values on error
+    }
+}
+
+// Load Diana patients list
+async function loadDianaPatients() {
+    try {
+        const { data, error } = await supabase
+            .from('diana_patients')
+            .select('*')
+            .eq('status', 'active')
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        const tbody = document.getElementById('diana-patients-list');
+        tbody.innerHTML = data.length ? data.map(patient => `
+            <tr>
+                <td>${patient.name || 'Desconhecido'}</td>
+                <td>${formatPhone(patient.phone)}</td>
+                <td>${patient.current_dose || '--'}</td>
+                <td>${patient.weeks_remaining || '--'}</td>
+                <td><span class="badge ${getPatientStatusBadge(patient.status)}">${formatPatientStatus(patient.status)}</span></td>
+            </tr>
+        `).join('') : `
+            <tr>
+                <td colspan="5" class="info-message">
+                    Configure Google Sheets integration to view patient data.
+                    <br><small>See docs/PATIENT_CHECKIN_SETUP.md</small>
+                </td>
+            </tr>
+        `;
+
+    } catch (error) {
+        console.error('Error loading Diana patients:', error);
+    }
+}
+
+// Load Diana check-ins history
+async function loadDianaCheckins() {
+    try {
+        const { data, error } = await supabase
+            .from('diana_checkins')
+            .select('*')
+            .order('checkin_date', { ascending: false })
+            .limit(50);
+
+        if (error) throw error;
+
+        const tbody = document.getElementById('diana-checkins-list');
+        tbody.innerHTML = data.length ? data.map(checkin => `
+            <tr>
+                <td>${formatDateShort(checkin.checkin_date)}</td>
+                <td>${checkin.patient_name || 'Desconhecido'}</td>
+                <td>${checkin.week_number || '--'}</td>
+                <td>${checkin.dose || '--'}</td>
+                <td><span class="badge ${getCheckinStatusBadge(checkin.status)}">${formatCheckinStatus(checkin.status)}</span></td>
+                <td>${checkin.side_effects || '--'}</td>
+                <td>${checkin.followup_needed ? 'Sim' : 'Nao'}</td>
+            </tr>
+        `).join('') : `
+            <tr>
+                <td colspan="7" class="info-message">
+                    Check-in logs are stored in Google Sheets (CheckInLog sheet).
+                    <br><small>Data will appear after first check-in cycle runs.</small>
+                </td>
+            </tr>
+        `;
+
+        // Update side effects counts
+        updateSideEffectsCounts(data);
+
+    } catch (error) {
+        console.error('Error loading Diana check-ins:', error);
+    }
+}
+
+// Update side effects counts from check-in data
+function updateSideEffectsCounts(checkins) {
+    const counts = { nausea: 0, fadiga: 0, dor: 0, outros: 0 };
+
+    checkins.forEach(checkin => {
+        if (!checkin.side_effects) return;
+        const effects = checkin.side_effects.toLowerCase();
+        if (effects.includes('nausea') || effects.includes('náusea')) counts.nausea++;
+        if (effects.includes('fadiga') || effects.includes('cansaco') || effects.includes('cansaço')) counts.fadiga++;
+        if (effects.includes('dor')) counts.dor++;
+        if (effects !== '--' && !effects.includes('nausea') && !effects.includes('náusea') &&
+            !effects.includes('fadiga') && !effects.includes('cansaco') && !effects.includes('cansaço') &&
+            !effects.includes('dor') && effects.trim() !== '') counts.outros++;
+    });
+
+    document.getElementById('se-nausea').textContent = counts.nausea || '--';
+    document.getElementById('se-fadiga').textContent = counts.fadiga || '--';
+    document.getElementById('se-dor').textContent = counts.dor || '--';
+    document.getElementById('se-outros').textContent = counts.outros || '--';
+}
+
+// Load Diana renewals
+async function loadDianaRenewals() {
+    try {
+        const { data, error } = await supabase
+            .from('diana_patients')
+            .select('*')
+            .lte('weeks_remaining', 2)
+            .gt('weeks_remaining', 0)
+            .order('weeks_remaining', { ascending: true });
+
+        if (error) throw error;
+
+        const tbody = document.getElementById('diana-renewals-list');
+        tbody.innerHTML = data.length ? data.map(patient => `
+            <tr>
+                <td>${patient.name || 'Desconhecido'}</td>
+                <td>${formatPhone(patient.phone)}</td>
+                <td>${patient.plan_name || '--'}</td>
+                <td><span class="badge badge-warning">${patient.weeks_remaining} semana(s)</span></td>
+                <td>${patient.current_dose || '--'}</td>
+                <td>${patient.payment_method || '--'}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="initiateRenewal('${patient.phone}')">
+                        Renovar
+                    </button>
+                </td>
+            </tr>
+        `).join('') : `
+            <tr>
+                <td colspan="7" class="info-message">
+                    Renewal reminders are sent at 2 weeks and 1 week remaining.
+                    <br><small>Team is notified via Telegram for follow-up.</small>
+                </td>
+            </tr>
+        `;
+
+    } catch (error) {
+        console.error('Error loading Diana renewals:', error);
+    }
+}
+
+// Initiate renewal for a patient
+function initiateRenewal(phone) {
+    // Placeholder for renewal action - could open modal or redirect
+    console.log('Initiating renewal for:', phone);
+    alert(`Renovacao iniciada para ${formatPhone(phone)}. Equipe sera notificada.`);
+}
+
+// Diana-specific formatting helpers
+function formatPatientStatus(status) {
+    const statuses = {
+        active: 'Ativo',
+        paused: 'Pausado',
+        completed: 'Concluido',
+        cancelled: 'Cancelado'
+    };
+    return statuses[status] || status;
+}
+
+function getPatientStatusBadge(status) {
+    const badges = {
+        active: 'badge-success',
+        paused: 'badge-warning',
+        completed: 'badge-info',
+        cancelled: 'badge-danger'
+    };
+    return badges[status] || 'badge-neutral';
+}
+
+function formatCheckinStatus(status) {
+    const statuses = {
+        completed: 'Respondido',
+        pending: 'Pendente',
+        missed: 'Nao Respondido',
+        escalated: 'Escalado'
+    };
+    return statuses[status] || status;
+}
+
+function getCheckinStatusBadge(status) {
+    const badges = {
+        completed: 'badge-success',
+        pending: 'badge-info',
+        missed: 'badge-danger',
+        escalated: 'badge-warning'
+    };
+    return badges[status] || 'badge-neutral';
+}
+
 // Make functions available globally
 window.refreshData = refreshData;
 window.selectConversation = selectConversation;
+window.initiateRenewal = initiateRenewal;

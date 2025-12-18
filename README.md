@@ -55,16 +55,16 @@ AI-powered multi-agent system for a premium weight loss clinic, built with n8n A
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Automation | n8n AI Agent Node |
-| LLM | Claude Haiku 4.5 (Anthropic) |
-| Memory | Window Buffer Memory (50 messages) |
-| Vector DB | Qdrant |
-| Embeddings | OpenAI text-embedding-3-small |
-| Database | Supabase |
-| WhatsApp | Official Business Cloud API |
-| Notifications | Telegram |
+| Component | Sofia | Diana |
+|-----------|-------|-------|
+| Automation | n8n AI Agent Node | n8n AI Agent Node |
+| LLM | Claude Haiku 4.5 | Claude Haiku 4.5 |
+| Memory | Window Buffer (20 msgs) | Window Buffer (10 msgs) |
+| Vector DB | Qdrant | Qdrant |
+| Embeddings | OpenAI text-embedding-3-small | OpenAI text-embedding-3-small |
+| Data Storage | Supabase | Google Sheets |
+| WhatsApp | Official Business Cloud API | Official Business Cloud API |
+| Notifications | Telegram | Telegram |
 
 ## Project Structure
 
@@ -107,79 +107,154 @@ ragbot/
 
 ## Quick Start
 
-### 1. Prerequisites
+### Prerequisites
 
 - n8n instance (self-hosted or cloud)
 - Qdrant vector database
-- Supabase account
+- Supabase account (for Sofia)
+- Google Sheets (for Diana)
 - WhatsApp Business API access
 - OpenAI API key (for embeddings)
 - Anthropic API key (for Claude Haiku 4.5)
-- Telegram bot (for handoff notifications)
+- Telegram bot (for notifications)
 
-### 2. Configure Credentials in n8n
+### Setup Guides
 
-Create these credentials:
-- **Anthropic** - API key for Claude Haiku 4.5
-- **OpenAI** - API key for embeddings
-- **Qdrant** - URL and API key
-- **Supabase** - URL and service key
-- **WhatsApp Business** - Access token
-- **Telegram** - Bot token
+- **Sofia Setup**: See [docs/SETUP.md](docs/SETUP.md)
+- **Diana Setup**: See [docs/PATIENT_CHECKIN_SETUP.md](docs/PATIENT_CHECKIN_SETUP.md)
 
-### 3. Import Workflows
+---
 
-1. Import `workflows/knowledge-base-setup.json` first
-2. Import `workflows/sofia-alternative-flow.json`
-3. Configure all credential connections
+## Sofia - Sales Assistant
 
-### 4. Setup RAG Knowledge Base
+### Purpose
+WhatsApp assistant for lead qualification, value building, and appointment scheduling.
 
-1. Edit/add markdown files in `knowledge-base/` folder
-2. Run the **Sofia Knowledge Base - RAG Setup** workflow manually
-3. This embeds all documents into Qdrant
+### Features
+- **Conversation Memory**: 20-message window buffer per user
+- **RAG Knowledge Base**: Retrieves clinic info, treatments, FAQ
+- **Natural Data Collection**: Collects name, email, CEP naturally
+- **Handoff Detection**: Triggers human escalation when needed
+- **Conversation Logging**: Stores all interactions in Supabase
 
-### 5. Configure WhatsApp Webhook
+### Conversation Flow
 
-1. Create WhatsApp Business App in Meta Developer Console
-2. Configure webhook URL: `https://your-n8n.com/webhook/whatsapp-webhook`
-3. Subscribe to `messages` webhook field
-4. Activate the Sofia AI Agent workflow
+1. **Greeting** - Welcome, LGPD consent
+2. **Discovery** - Understand user goals
+3. **Qualification** - Collect contact data naturally
+4. **Value Building** - Explain methodology, handle objections
+5. **Scheduling** - Book appointment
+6. **Confirmation** - Send details
 
-## Workflow Components
+### Sofia Personality
 
-### Sofia AI Agent Workflow
+- Warm, caring, professional
+- Portuguese (Brazilian) primary language
+- Maximum 1-2 emojis per message
+- Natural conversational data collection
+- Never pushy, always empathetic
 
-| Node | Purpose |
-|------|---------|
-| WhatsApp Webhook | Receives incoming messages |
-| Is Verification? | Handles webhook verification |
-| Has Message? | Filters actual messages |
-| Extract Message | Parses WhatsApp payload |
-| Sofia AI Agent | Main AI Agent node |
-| Claude Haiku 4.5 | LLM brain |
-| Window Buffer Memory | Conversation memory (50 messages) |
-| Knowledge Base RAG | Vector store tool for retrieval |
-| Qdrant Vector Store | Vector database connection |
-| OpenAI Embeddings | Query embeddings |
-| Prepare Response | Process AI output |
-| Send WhatsApp Message | Reply to user |
-| Needs Handoff? | Check for escalation |
-| Notify Team | Telegram alert if handoff |
-| Log to Database | Store in Supabase |
+### Pricing Rules
 
-### Knowledge Base Setup Workflow
+| Item | Rule |
+|------|------|
+| Consultation (R$700) | Can mention after building value |
+| Treatment (R$3,000+) | NEVER mention specific value |
 
-| Node | Purpose |
-|------|---------|
-| Manual Trigger | Start manually |
-| List Knowledge Base Files | Define files to process |
-| Read Markdown File | Load each document |
-| Parse & Chunk Document | Split into sections |
-| Insert into Qdrant | Embed and store vectors |
-| OpenAI Embeddings | Generate embeddings |
-| Recursive Text Splitter | Additional chunking |
-| Default Data Loader | Document preparation |
+### Handoff Triggers
+
+- Pregnancy/breastfeeding
+- Serious medical conditions
+- User frustration (negative sentiment)
+- Direct request for human
+- Business negotiations
+
+---
+
+## Diana - Patient Check-in Agent
+
+### Purpose
+Weekly check-in automation for patients on Tirzepatide (Mounjaro) treatment plans.
+
+### Features
+- **Scheduled Check-ins**: Sends messages every Saturday at 11 AM
+- **Treatment Tracking**: Monitors remaining weeks, deducts automatically
+- **Side Effect Detection**: Analyzes responses for side effects
+- **Renewal Reminders**: Alerts at 2 weeks and 1 week remaining
+- **Team Handoff**: Telegram notifications with full patient info
+- **Google Sheets Integration**: Patient data and check-in logs
+
+### Treatment Plans
+
+| Plan | Duration | Use Case |
+|------|----------|----------|
+| Starter | 4 weeks | Initial evaluation |
+| Standard | 12 weeks | Recommended plan |
+| Extended | 16 weeks | Best results |
+
+### Check-in Flow
+
+```
+Saturday 11 AM
+      │
+      ▼
+Read Active Patients (Google Sheets)
+      │
+      ▼
+Filter: REMAINING_WEEKS > 0
+      │
+      ▼
+For Each Patient:
+      │
+      ├─► Generate personalized message (Claude Haiku 4.5)
+      │   - Greeting with name
+      │   - Current dose reminder
+      │   - Weeks remaining
+      │   - Well-being questions
+      │   - Side effects check
+      │
+      ├─► Send via WhatsApp
+      │
+      ├─► Log to CheckInLog sheet
+      │
+      ├─► Deduct 1 from REMAINING_WEEKS
+      │
+      └─► Check Treatment Status:
+          │
+          ├─► 2 weeks remaining: Notify team for renewal outreach
+          │
+          ├─► Last week: Mark complete + Notify team
+          │
+          └─► Ongoing: Continue
+```
+
+### Renewal Flow
+
+1. **2 Weeks Remaining**: Diana sends reminder, asks about renewal, team notified
+2. **1 Week Remaining**: Final check-in, asks about experience, marks treatment complete
+3. **Team Handoff**: Telegram message with full patient info for follow-up
+
+### Diana Personality
+
+- Warm, professional, empathetic
+- Portuguese (Brazilian) default, switches to English if patient uses it
+- NO emojis - clean, professional messages
+- Never provides medical advice
+- Always encourages contacting doctor for concerns
+
+### Google Sheets Structure
+
+**Patients Sheet:**
+```
+NAME | PHONE | STARTING_DATE | TOTAL_WEEKS_CONTRACTED | REMAINING_WEEKS | CURRENT_DOSE | PAYMENT_METHOD | LAST_PAYMENT | NOTES | STATUS
+```
+
+**CheckInLog Sheet:**
+```
+DATE | PATIENT_NAME | PHONE | WEEK_NUMBER | DOSE_AT_CHECKIN | REMAINING_WEEKS | MESSAGE_SENT | STATUS | RESPONSE | SIDE_EFFECTS_REPORTED | FOLLOW_UP_NEEDED
+```
+
+---
 
 ## Environment Variables
 
@@ -192,9 +267,12 @@ WHATSAPP_ACCESS_TOKEN=your_token
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 OPENAI_API_KEY=sk-xxxxx
 
-# Database
+# Supabase (Sofia)
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJxxxxx
+
+# Google Sheets (Diana)
+PATIENT_SHEET_ID=your_spreadsheet_id
 
 # Vector Database
 QDRANT_URL=http://localhost:6333
@@ -204,61 +282,33 @@ QDRANT_COLLECTION=sofia_knowledge
 # Notifications
 TELEGRAM_BOT_TOKEN=123:ABC
 TELEGRAM_CHAT_ID=-100123
-
-# Human Support Handoff (WhatsApp)
-HUMAN_SUPPORT_PHONE=5511999998888
 ```
 
-## Sofia AI Agent Features
+## Dashboard
 
-### Memory
-- **Window Buffer Memory**: Maintains last 50 messages per conversation
-- **Session-based**: Each phone number has its own memory session
-- **Automatic context**: Agent sees full conversation history
+The unified dashboard provides monitoring for both agents:
 
-### RAG (Retrieval-Augmented Generation)
-- **Vector Store Tool**: Agent can search knowledge base on demand
-- **Semantic search**: Uses OpenAI embeddings for similarity
-- **4 results per query**: Returns top 4 relevant chunks
-- **Categories**: Institutional, treatments, FAQ, objections, compliance
+### Sofia Section
+- Total conversations
+- Active conversations
+- Scheduled appointments
+- Handoff queue
+- Conversation analytics
+- Stage distribution
 
-### Handoff Detection
-- Automatic detection when lead agrees to schedule
-- Triggers WhatsApp notification to human support team
-- Sofia uses `[AGENDAR_CONSULTA]` tag when lead is ready
-- Full lead data (name, CPF, DOB, email, address) included in notification
+### Diana Section
+- Active patients
+- Treatments in progress
+- Pending renewals
+- Completed treatments
+- Check-in history
+- Side effects tracking
+- Renewal flow visualization
 
-## Conversation Flow
-
-1. **Greeting** - Welcome, LGPD consent
-2. **Discovery** - Understand user goals
-3. **Qualification** - Collect contact data naturally
-4. **Value Building** - Explain methodology, handle objections
-5. **Scheduling** - Book appointment
-6. **Confirmation** - Send details
-
-## Sofia Personality
-
-- Warm, caring, professional
-- Portuguese (Brazilian) primary language
-- Maximum 1-2 emojis per message
-- Natural conversational data collection
-- Never pushy, always empathetic
-
-## Pricing Rules
-
-| Item | Rule |
-|------|------|
-| Consultation (R$700) | Can mention after building value |
-| Treatment (R$3,000+) | NEVER mention specific value |
-
-## Handoff Triggers
-
-- Pregnancy/breastfeeding
-- Serious medical conditions
-- User frustration (negative sentiment)
-- Direct request for human
-- Business negotiations
+### Setup
+1. Deploy `dashboard/` folder to any static hosting
+2. Enter Supabase credentials for Sofia data
+3. Diana data is read from Google Sheets (configure in n8n)
 
 ## Adding New Knowledge
 
@@ -273,7 +323,7 @@ priority: high
 ---
 ```
 3. Run Knowledge Base Setup workflow
-4. New content is immediately available to AI Agent
+4. New content is immediately available to both agents
 
 ---
 
