@@ -33,7 +33,7 @@ WhatsApp Business API → n8n Webhook → Sofia AI Agent
 |-----------|------------|
 | Automation | n8n AI Agent Node |
 | LLM | Claude Haiku 4.5 (Anthropic) |
-| Memory | Window Buffer Memory (20 messages) |
+| Memory | Window Buffer Memory (50 messages) |
 | Vector DB | Qdrant |
 | Embeddings | OpenAI text-embedding-3-small |
 | Database | Supabase |
@@ -45,8 +45,8 @@ WhatsApp Business API → n8n Webhook → Sofia AI Agent
 ```
 ragbot/
 ├── workflows/
-│   ├── sofia-assistant.json      # Main AI Agent workflow
-│   └── knowledge-base-setup.json # RAG ingestion workflow
+│   ├── sofia-alternative-flow.json  # Main AI Agent workflow
+│   └── knowledge-base-setup.json    # RAG ingestion workflow
 ├── knowledge-base/               # RAG documents
 │   ├── institutional/
 │   │   └── about_clinic.md
@@ -91,7 +91,7 @@ Create these credentials:
 ### 3. Import Workflows
 
 1. Import `workflows/knowledge-base-setup.json` first
-2. Import `workflows/sofia-assistant.json`
+2. Import `workflows/sofia-alternative-flow.json`
 3. Configure all credential connections
 
 ### 4. Setup RAG Knowledge Base
@@ -119,7 +119,7 @@ Create these credentials:
 | Extract Message | Parses WhatsApp payload |
 | Sofia AI Agent | Main AI Agent node |
 | Claude Haiku 4.5 | LLM brain |
-| Window Buffer Memory | Conversation memory (20 messages) |
+| Window Buffer Memory | Conversation memory (50 messages) |
 | Knowledge Base RAG | Vector store tool for retrieval |
 | Qdrant Vector Store | Vector database connection |
 | OpenAI Embeddings | Query embeddings |
@@ -165,12 +165,15 @@ QDRANT_COLLECTION=sofia_knowledge
 # Notifications
 TELEGRAM_BOT_TOKEN=123:ABC
 TELEGRAM_CHAT_ID=-100123
+
+# Human Support Handoff (WhatsApp)
+HUMAN_SUPPORT_PHONE=5511999998888
 ```
 
 ## Sofia AI Agent Features
 
 ### Memory
-- **Window Buffer Memory**: Maintains last 20 messages per conversation
+- **Window Buffer Memory**: Maintains last 50 messages per conversation
 - **Session-based**: Each phone number has its own memory session
 - **Automatic context**: Agent sees full conversation history
 
@@ -181,9 +184,10 @@ TELEGRAM_CHAT_ID=-100123
 - **Categories**: Institutional, treatments, FAQ, objections, compliance
 
 ### Handoff Detection
-- Automatic detection based on response content
-- Triggers Telegram notification to team
-- Phrases like "transferir", "equipe especializada" trigger handoff
+- Automatic detection when lead agrees to schedule
+- Triggers WhatsApp notification to human support team
+- Sofia uses `[AGENDAR_CONSULTA]` tag when lead is ready
+- Full lead data (name, CPF, DOB, email, address) included in notification
 
 ## Conversation Flow
 
