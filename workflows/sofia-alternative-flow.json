@@ -168,12 +168,23 @@
       "typeVersion": 1
     },
     {
-      "id": "in-memory-vector-store",
-      "name": "Sofia Knowledge Store",
-      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "id": "qdrant-vector-store",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
       "position": [940, 740],
       "parameters": {
-        "memoryKey": "sofia-knowledge-base"
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sofia_knowledge",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
       },
       "typeVersion": 1
     },
@@ -235,113 +246,15 @@
       "typeVersion": 1
     },
     {
-      "id": "manual-trigger",
-      "name": "When clicking 'Test workflow'",
-      "type": "n8n-nodes-base.manualTrigger",
-      "position": [-400, 100],
-      "parameters": {},
-      "typeVersion": 1
-    },
-    {
-      "id": "get-knowledge-docs",
-      "name": "Get Knowledge Base Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [-200, 100],
-      "parameters": {
-        "url": "https://raw.githubusercontent.com/alvesarel/ragbot/main/knowledge-base/treatments/methodology.md",
-        "options": {}
-      },
-      "typeVersion": 4.2
-    },
-    {
-      "id": "create-vector-store",
-      "name": "Create Sofia Knowledge Store",
-      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
-      "position": [40, 100],
-      "parameters": {
-        "mode": "insert",
-        "memoryKey": "sofia-knowledge-base",
-        "clearStore": true
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "embeddings-for-insert",
-      "name": "OpenAI Embeddings (Insert)",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
-      "position": [40, 280],
-      "parameters": {
-        "model": "text-embedding-3-small",
-        "options": {}
-      },
-      "credentials": {
-        "openAiApi": {
-          "id": "openai-creds",
-          "name": "OpenAI"
-        }
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "document-loader",
-      "name": "Default Data Loader",
-      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
-      "position": [180, 280],
-      "parameters": {
-        "options": {},
-        "jsonData": "={{ $json.data }}",
-        "jsonMode": "expressionData"
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "text-splitter",
-      "name": "Recursive Character Text Splitter",
-      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
-      "position": [180, 400],
-      "parameters": {
-        "options": {},
-        "chunkSize": 1500,
-        "chunkOverlap": 200
-      },
-      "typeVersion": 1
-    },
-    {
       "id": "sticky-note-main",
       "name": "Main Workflow Info",
       "type": "n8n-nodes-base.stickyNote",
-      "position": [-480, -140],
+      "position": [120, 100],
       "parameters": {
         "color": 7,
         "width": 500,
-        "height": 300,
-        "content": "## Sofia Alternative Flow\n\nThis workflow implements Sofia, an AI assistant for a weight loss clinic, using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context per user\n- **In-Memory Vector Store** - RAG knowledge base for accurate responses\n\n### Two-part Setup:\n1. **Run manual trigger once** to populate the knowledge base\n2. **Activate workflow** to start receiving WhatsApp messages\n\n### Credentials Required:\n- Anthropic API (for Claude Haiku 4.5)\n- OpenAI API (for embeddings)\n- WhatsApp Business API"
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "sticky-note-vector",
-      "name": "Vector Store Setup",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [-480, 0],
-      "parameters": {
-        "color": 5,
-        "width": 260,
-        "height": 80,
-        "content": "### Step 1: Run once to populate knowledge base\nClick 'Test Workflow' button to load documents"
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "sticky-note-whatsapp",
-      "name": "WhatsApp Flow",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [120, 200],
-      "parameters": {
-        "color": 5,
-        "width": 260,
-        "height": 80,
-        "content": "### Step 2: Activate to handle messages\nActivate workflow to start receiving WhatsApp messages"
+        "height": 220,
+        "content": "## Sofia Alternative Flow (Claude Haiku 4.5)\n\nThis workflow implements Sofia using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context (20 messages per user)\n- **Qdrant Vector Store** - Persistent RAG knowledge base (survives restarts)\n\n### Prerequisites:\nRun the **Sofia Knowledge Base - RAG Setup** workflow first to populate the `sofia_knowledge` Qdrant collection with all knowledge base documents."
       },
       "typeVersion": 1
     },
@@ -354,7 +267,20 @@
         "color": 7,
         "width": 500,
         "height": 180,
-        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (20 messages)\n- **Knowledge Base RAG Tool** to fetch accurate clinic information\n\nSofia's personality: Warm, professional, empathetic assistant focused on helping users learn about treatments and schedule consultations."
+        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (20 messages)\n- **Knowledge Base RAG Tool** connected to Qdrant for persistent, accurate clinic information\n\nKnowledge base includes: clinic info, treatments, methodology, FAQ, objection handling, and compliance docs."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-qdrant",
+      "name": "Qdrant Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [860, 880],
+      "parameters": {
+        "color": 5,
+        "width": 400,
+        "height": 100,
+        "content": "### Persistent Vector Store (Qdrant)\nUses the `sofia_knowledge` collection populated by the **Sofia Knowledge Base - RAG Setup** workflow. Data persists across n8n restarts."
       },
       "typeVersion": 1
     }
@@ -433,7 +359,7 @@
         ]
       ]
     },
-    "Sofia Knowledge Store": {
+    "Qdrant Vector Store": {
       "ai_vectorStore": [
         [
           {
@@ -448,7 +374,7 @@
       "ai_embedding": [
         [
           {
-            "node": "Sofia Knowledge Store",
+            "node": "Qdrant Vector Store",
             "type": "ai_embedding",
             "index": 0
           }
@@ -461,61 +387,6 @@
           {
             "node": "Knowledge Base RAG Tool",
             "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "When clicking 'Test workflow'": {
-      "main": [
-        [
-          {
-            "node": "Get Knowledge Base Content",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Knowledge Base Content": {
-      "main": [
-        [
-          {
-            "node": "Create Sofia Knowledge Store",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Embeddings (Insert)": {
-      "ai_embedding": [
-        [
-          {
-            "node": "Create Sofia Knowledge Store",
-            "type": "ai_embedding",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Default Data Loader": {
-      "ai_document": [
-        [
-          {
-            "node": "Create Sofia Knowledge Store",
-            "type": "ai_document",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Recursive Character Text Splitter": {
-      "ai_textSplitter": [
-        [
-          {
-            "node": "Default Data Loader",
-            "type": "ai_textSplitter",
             "index": 0
           }
         ]
