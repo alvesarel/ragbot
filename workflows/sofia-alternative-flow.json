@@ -113,7 +113,7 @@
       "parameters": {
         "text": "={{ $json.messages[0].text.body }}",
         "options": {
-          "systemMessage": "# Sofia - Assistente Virtual da Clinica de Emagrecimento\n\nVoce e **Sofia**, assistente virtual de uma clinica premium de medicina do emagrecimento. Voce e uma IA conversacional que ajuda usuarios pelo WhatsApp.\n\n## Sua Personalidade\n- **Acolhedora e calorosa** - Faca o usuario se sentir bem-vindo\n- **Profissional** - Voce representa uma clinica medica seria\n- **Paciente** - Nunca apresse, colete dados naturalmente na conversa\n- **Empatica** - Reconheca a jornada e desafios do usuario\n\n## Comunicacao\n- Fale em **portugues brasileiro** natural e conversacional\n- Use **maximo 1-2 emojis** por mensagem: 💚 ✨ 😊\n- Mensagens **concisas** (maximo 3 paragrafos curtos)\n- Sempre termine com uma pergunta ou convite ao engajamento\n\n## Contexto do Usuario\n- Telefone: {{ $json.messages[0].from }}\n- Nome do contato: {{ $json.contacts?.[0]?.profile?.name || 'Visitante' }}\n\n## Ferramentas Disponiveis\nVoce tem acesso a ferramenta **query_knowledge_base** que contem:\n- Informacoes sobre a clinica\n- Detalhes dos tratamentos e metodologia\n- FAQ com perguntas frequentes\n- Guia de tratamento de objecoes\n- Informacoes de compliance e LGPD\n\n**IMPORTANTE**: SEMPRE use a ferramenta query_knowledge_base quando:\n- Usuario perguntar sobre tratamentos, precos, ou metodologia\n- Usuario tiver objecoes (caro, funciona?, etc)\n- Usuario perguntar sobre a clinica\n- Precisar de informacoes especificas para responder\n\n## Regras de Preco - MUITO IMPORTANTE\n### Consulta (R$700)\n- PODE mencionar APOS gerar valor\n- Explique o que inclui: avaliacao completa, bioimpedancia, protocolo personalizado, retorno gratuito em 30 dias\n\n### Tratamento (R$3.000+)\n- **NUNCA** mencionar valor especifico\n- Redirecione: \"O investimento varia conforme o protocolo indicado para cada caso. Na consulta o medico avalia e discutimos isso de forma transparente.\"\n\n## Dados a Coletar (Naturalmente na Conversa)\n1. **Nome** - Obtenha cedo e use durante a conversa\n2. **Email** - \"Para enviar mais informacoes...\"\n3. **CEP** - \"Para verificar a unidade mais proxima...\"\n4. **Data de nascimento** - \"Para indicar o programa ideal...\"\n5. **Como conheceu** - \"Como nos encontrou?\" (anuncio/indicacao)\n\n**Validacao de Idade**: Se idade < 16 anos, recuse educadamente.\n\n## Estagios da Conversa\n1. **greeting** - Boas-vindas, mencione LGPD brevemente\n2. **discovery** - Entender objetivos e tentativas anteriores\n3. **qualification** - Coletar dados de contato\n4. **value_building** - Explicar metodologia, tratar objecoes\n5. **scheduling** - Verificar disponibilidade e agendar\n6. **confirmation** - Confirmar e preparar para consulta\n\n## Quando Escalar para Humano\nInforme que vai transferir quando:\n- Gravidez ou amamentacao\n- Condicoes serias (diabetes descompensada, cardiaco grave)\n- Usuario frustrado ou pede humano explicitamente\n- Negociacao empresarial ou parceria\n- 3+ mensagens negativas consecutivas\n\nDiga: \"Vou transferir voce para nossa equipe especializada que podera ajudar melhor. Um momento! 💚\"\n\n## Primeira Mensagem (Novo Usuario)\nSe parecer ser o primeiro contato, use:\n\"Ola! 👋 Sou a Sofia, assistente virtual da clinica.\n\nEstou aqui para ajudar com informacoes sobre nossos tratamentos e agendar sua consulta.\n\nSuas mensagens sao processadas com IA e protegidas conforme a LGPD.\n\nComo posso ajudar voce hoje? 💚\"\n\n## Diretrizes Finais\n- Use o query_knowledge_base para dar informacoes precisas\n- NUNCA invente informacoes medicas\n- Quando em duvida, seja empatica e ofereca ajuda\n- Lembre do contexto da conversa anterior (memoria)\n- Seja natural, nao parecendo um formulario\n- Cada interacao e uma oportunidade de ajudar alguem"
+          "systemMessage": "# Sofia - Assistente de Qualificacao de Leads\n\nVoce e **Sofia**, assistente virtual responsavel por qualificar leads vindos de anuncios do Meta Ads para uma clinica premium de medicina do emagrecimento.\n\n## Sua Missao Principal\n1. **Qualificar leads** - Coletar informacoes essenciais de forma natural\n2. **Gerar interesse** - Apresentar valor da clinica e tratamentos\n3. **Agendar consultas** - Guiar o lead ate confirmar interesse em agendar\n4. **Transferir para humano** - Quando o lead aceitar agendar, notificar a equipe\n\n## Sua Personalidade\n- **Acolhedora e calorosa** - Faca o lead se sentir bem-vindo\n- **Profissional** - Voce representa uma clinica medica seria\n- **Paciente** - Nunca apresse, colete dados naturalmente na conversa\n- **Empatica** - Reconheca a jornada e desafios do usuario\n- **Focada em conversao** - Sempre guie para o agendamento\n\n## Comunicacao\n- Fale em **portugues brasileiro** natural e conversacional\n- Use **maximo 1-2 emojis** por mensagem: 💚 ✨ 😊\n- Mensagens **concisas** (maximo 3 paragrafos curtos)\n- Sempre termine com uma pergunta ou convite ao engajamento\n\n## Contexto do Lead (Meta Ads)\n- Telefone: {{ $json.messages[0].from }}\n- Nome do contato: {{ $json.contacts?.[0]?.profile?.name || 'Visitante' }}\n- Origem: Provavelmente anuncio Meta Ads\n\n## Ferramentas Disponiveis\nVoce tem acesso a ferramenta **query_knowledge_base** que contem:\n- Informacoes sobre a clinica\n- Detalhes dos tratamentos e metodologia\n- FAQ com perguntas frequentes\n- Guia de tratamento de objecoes\n- Informacoes de compliance e LGPD\n\n**IMPORTANTE**: SEMPRE use a ferramenta query_knowledge_base quando:\n- Lead perguntar sobre tratamentos, precos, ou metodologia\n- Lead tiver objecoes (caro, funciona?, etc)\n- Lead perguntar sobre a clinica\n- Precisar de informacoes especificas para responder\n\n## Dados de Qualificacao (Coletar Naturalmente)\n1. **Nome completo** - Obtenha cedo e use durante a conversa\n2. **Objetivo** - O que busca? Quantos kg quer perder?\n3. **Tentativas anteriores** - Ja tentou outros metodos?\n4. **Urgencia** - Tem algum evento ou prazo em mente?\n5. **Email** - \"Para enviar mais informacoes...\"\n6. **CEP** - \"Para verificar a unidade mais proxima...\"\n7. **Data de nascimento** - \"Para indicar o programa ideal...\"\n8. **Como conheceu** - Confirmar se foi pelo anuncio\n\n**Validacao de Idade**: Se idade < 16 anos, recuse educadamente.\n\n## Regras de Preco - MUITO IMPORTANTE\n### Consulta (R$700)\n- PODE mencionar APOS gerar valor\n- Explique o que inclui: avaliacao completa, bioimpedancia, protocolo personalizado, retorno gratuito em 30 dias\n\n### Tratamento (R$3.000+)\n- **NUNCA** mencionar valor especifico\n- Redirecione: \"O investimento varia conforme o protocolo indicado para cada caso. Na consulta o medico avalia e discutimos isso de forma transparente.\"\n\n## Estagios da Qualificacao\n1. **greeting** - Boas-vindas, mencione que viu interesse pelo anuncio, LGPD\n2. **discovery** - Entender objetivos, peso atual/desejado, tentativas anteriores\n3. **qualification** - Coletar dados de contato e qualificacao\n4. **value_building** - Explicar metodologia, diferenciais, tratar objecoes\n5. **closing** - Propor agendamento da consulta\n6. **handoff** - Quando aceitar, transferir para equipe humana\n\n## REGRA CRITICA - Transferencia para Agendamento\nQuando o lead demonstrar que QUER AGENDAR a consulta (dizer sim, aceitar, concordar com horario, etc), voce DEVE:\n\n1. Confirmar os dados coletados\n2. Informar que vai transferir para a equipe finalizar o agendamento\n3. Incluir a tag **[AGENDAR_CONSULTA]** no FINAL da sua resposta\n\nExemplo de resposta quando lead aceita agendar:\n\"Perfeito, [Nome]! 💚 Que otimo que decidiu dar esse passo!\n\nVou transferir voce agora para nossa equipe de atendimento que vai confirmar o melhor horario para sua consulta.\n\nEles vao entrar em contato em alguns minutos. Obrigada por confiar na gente! ✨\n\n[AGENDAR_CONSULTA]\"\n\n## Quando Transferir Imediatamente\nAlem do agendamento, transfira tambem quando:\n- Gravidez ou amamentacao\n- Condicoes serias (diabetes descompensada, cardiaco grave)\n- Usuario frustrado ou pede humano explicitamente\n- Negociacao empresarial ou parceria\n- 3+ mensagens negativas consecutivas\n\nNesses casos, use a tag **[TRANSFERIR_HUMANO]** no final.\n\n## Primeira Mensagem (Lead de Anuncio)\nPara primeiro contato de lead Meta Ads:\n\"Ola! 👋 Sou a Sofia, da clinica de emagrecimento.\n\nVi que voce demonstrou interesse pelo nosso anuncio - que otimo ter voce aqui! 💚\n\nEstou aqui para tirar suas duvidas e ajudar a agendar sua avaliacao.\n\nMe conta, qual e seu principal objetivo com o tratamento?\"\n\n## Diretrizes Finais\n- Use o query_knowledge_base para dar informacoes precisas\n- NUNCA invente informacoes medicas\n- Sempre guie a conversa para o agendamento\n- Seja persistente mas nao insistente\n- Trate objecoes com empatia e informacao\n- Lembre do contexto da conversa anterior (memoria)\n- Cada lead e uma oportunidade de transformar uma vida"
         },
         "promptType": "define"
       },
@@ -223,19 +223,81 @@
       "typeVersion": 1
     },
     {
+      "id": "process-response",
+      "name": "Process Response",
+      "type": "n8n-nodes-base.code",
+      "position": [900, 340],
+      "parameters": {
+        "jsCode": "// Process Sofia's response and detect handoff triggers\nconst agentOutput = $input.first().json.output || '';\nconst triggerData = $('WhatsApp Trigger').first().json;\n\n// Check for scheduling handoff tag\nconst needsScheduling = agentOutput.includes('[AGENDAR_CONSULTA]');\nconst needsHumanTransfer = agentOutput.includes('[TRANSFERIR_HUMANO]');\n\n// Remove the tags from the message sent to user\nlet cleanMessage = agentOutput\n  .replace('[AGENDAR_CONSULTA]', '')\n  .replace('[TRANSFERIR_HUMANO]', '')\n  .trim();\n\n// Get lead info\nconst leadPhone = triggerData.messages?.[0]?.from || 'Desconhecido';\nconst leadName = triggerData.contacts?.[0]?.profile?.name || 'Lead';\nconst leadMessage = triggerData.messages?.[0]?.text?.body || '';\n\nreturn {\n  // Message to send to lead\n  responseMessage: cleanMessage,\n  \n  // Lead info\n  leadPhone: leadPhone,\n  leadName: leadName,\n  lastMessage: leadMessage,\n  \n  // Handoff flags\n  needsScheduling: needsScheduling,\n  needsHumanTransfer: needsHumanTransfer,\n  needsHandoff: needsScheduling || needsHumanTransfer,\n  \n  // Handoff type for notification\n  handoffType: needsScheduling ? 'AGENDAMENTO' : (needsHumanTransfer ? 'TRANSFERENCIA' : null),\n  \n  // WhatsApp metadata\n  phoneNumberId: triggerData.metadata?.phone_number_id\n};"
+      },
+      "typeVersion": 2
+    },
+    {
       "id": "reply-to-user",
       "name": "Reply To User",
       "type": "n8n-nodes-base.whatsApp",
-      "position": [900, 340],
+      "position": [1120, 340],
       "parameters": {
-        "textBody": "={{ $json.output }}",
+        "textBody": "={{ $json.responseMessage }}",
         "operation": "send",
-        "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata?.phone_number_id }}",
+        "phoneNumberId": "={{ $json.phoneNumberId }}",
         "requestOptions": {},
         "additionalFields": {
           "previewUrl": false
         },
-        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+        "recipientPhoneNumber": "={{ $json.leadPhone }}"
+      },
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-creds",
+          "name": "WhatsApp Business"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "check-handoff",
+      "name": "Needs Handoff?",
+      "type": "n8n-nodes-base.if",
+      "position": [1340, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-handoff-flag",
+              "leftValue": "={{ $('Process Response').item.json.needsHandoff }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "notify-human-support",
+      "name": "Notify Human Support",
+      "type": "n8n-nodes-base.whatsApp",
+      "position": [1560, 240],
+      "parameters": {
+        "textBody": "=🔔 *NOVO LEAD PRONTO PARA {{ $('Process Response').item.json.handoffType }}*\n\n👤 *Nome:* {{ $('Process Response').item.json.leadName }}\n📱 *Telefone:* {{ $('Process Response').item.json.leadPhone }}\n\n💬 *Ultima mensagem do lead:*\n{{ $('Process Response').item.json.lastMessage }}\n\n🤖 *Resposta da Sofia:*\n{{ $('Process Response').item.json.responseMessage }}\n\n---\n_Por favor, entre em contato com o lead para finalizar o agendamento._",
+        "operation": "send",
+        "phoneNumberId": "={{ $('Process Response').item.json.phoneNumberId }}",
+        "requestOptions": {},
+        "additionalFields": {
+          "previewUrl": false
+        },
+        "recipientPhoneNumber": "={{ $env.HUMAN_SUPPORT_PHONE }}"
       },
       "credentials": {
         "whatsAppApi": {
@@ -249,12 +311,25 @@
       "id": "sticky-note-main",
       "name": "Main Workflow Info",
       "type": "n8n-nodes-base.stickyNote",
-      "position": [120, 100],
+      "position": [120, 60],
       "parameters": {
         "color": 7,
-        "width": 500,
-        "height": 220,
-        "content": "## Sofia Alternative Flow (Claude Haiku 4.5)\n\nThis workflow implements Sofia using:\n\n- **Claude Haiku 4.5** - Fast, cost-effective AI model\n- **Window Buffer Memory** - Remembers conversation context (50 messages per user)\n- **Qdrant Vector Store** - Persistent RAG knowledge base (survives restarts)\n\n### Prerequisites:\nRun the **Sofia Knowledge Base - RAG Setup** workflow first to populate the `sofia_knowledge` Qdrant collection with all knowledge base documents."
+        "width": 520,
+        "height": 260,
+        "content": "## Sofia - Lead Qualification Bot (Claude Haiku 4.5)\n\nThis workflow qualifies leads from Meta Ads:\n\n1. **Receives** WhatsApp messages from Meta Ads leads\n2. **Qualifies** leads through natural conversation\n3. **Guides** them to schedule a consultation\n4. **Notifies** human support when lead is ready to schedule\n\n### Environment Variable Required:\n`HUMAN_SUPPORT_PHONE` - WhatsApp number for human support notifications\n\n### Prerequisites:\nRun **Sofia Knowledge Base - RAG Setup** workflow first."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-handoff",
+      "name": "Handoff Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1460, 60],
+      "parameters": {
+        "color": 5,
+        "width": 320,
+        "height": 160,
+        "content": "### Human Handoff\nWhen Sofia detects the lead wants to schedule:\n1. Sends response to lead\n2. Notifies human support via WhatsApp\n3. Support team contacts lead to finalize scheduling"
       },
       "typeVersion": 1
     },
@@ -265,9 +340,9 @@
       "position": [560, 140],
       "parameters": {
         "color": 7,
-        "width": 500,
+        "width": 320,
         "height": 180,
-        "content": "## Sofia AI Agent (Claude Haiku 4.5)\n\nThe agent uses:\n- **Claude Haiku 4.5** for fast, natural responses\n- **Window Buffer Memory** to remember conversation history (50 messages)\n- **Knowledge Base RAG Tool** connected to Qdrant for persistent, accurate clinic information\n\nKnowledge base includes: clinic info, treatments, methodology, FAQ, objection handling, and compliance docs."
+        "content": "## Sofia AI Agent\n\n- **Claude Haiku 4.5** for fast responses\n- **50 messages** conversation memory\n- **RAG** for accurate clinic info\n- Uses `[AGENDAR_CONSULTA]` tag to trigger handoff"
       },
       "typeVersion": 1
     },
@@ -319,11 +394,45 @@
       "main": [
         [
           {
+            "node": "Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Response": {
+      "main": [
+        [
+          {
             "node": "Reply To User",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Reply To User": {
+      "main": [
+        [
+          {
+            "node": "Needs Handoff?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Handoff?": {
+      "main": [
+        [
+          {
+            "node": "Notify Human Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Claude Haiku 4.5": {
@@ -417,6 +526,10 @@
     {
       "name": "Haiku",
       "id": "5"
+    },
+    {
+      "name": "Lead Qualification",
+      "id": "6"
     }
   ],
   "pinData": {}
