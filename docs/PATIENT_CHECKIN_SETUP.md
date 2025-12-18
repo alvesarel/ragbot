@@ -1,6 +1,6 @@
-# Patient Check-in AI Agent Setup Guide
+# Diana - Patient Check-in AI Agent Setup Guide
 
-Complete setup guide for the Tirzepatide Weekly Patient Check-in Agent.
+Complete setup guide for Diana, the Tirzepatide Weekly Patient Check-in Agent.
 
 ## Overview
 
