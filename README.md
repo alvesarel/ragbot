@@ -371,18 +371,39 @@ Yara uses hardcoded values in the workflow JSON. To change authorized users:
 
 ---
 
+## WhatsApp Architecture
+
+### Current Setup: Dual Phone Numbers
+Sofia and Diana use **separate WhatsApp Business numbers** to avoid message routing conflicts:
+
+| Agent | Phone Number | Purpose |
+|-------|--------------|---------|
+| Sofia | Leads line | Meta Ads, new inquiries |
+| Diana | Patients line | Existing patient check-ins |
+
+### Future Option: Unified Workflow
+A single WhatsApp number with smart routing is possible:
+```
+Message arrives → Lookup in Patients sheet
+  ├─► Found → Diana logic (patient)
+  └─► Not found → Sofia logic (lead)
+```
+This would require merging workflows into a single unified agent with routing logic.
+
+---
+
 ## All Agents Summary
 
 ### Sofia (Lead Qualification)
-- **Channel**: WhatsApp
+- **Channel**: WhatsApp (leads line)
 - **Trigger**: Incoming messages from Meta Ads leads
 - **Goal**: Qualify leads and schedule consultations
 - **Handoff**: WhatsApp notification to human support
 - **Memory**: 50 messages
 
 ### Diana (Patient Check-ins)
-- **Channel**: WhatsApp
-- **Trigger**: Weekly schedule (Saturdays 11 AM)
+- **Channel**: WhatsApp (patients line)
+- **Trigger**: Weekly schedule (Saturdays 11 AM) + patient responses
 - **Goal**: Check patient well-being, track treatment progress
 - **Handoff**: Telegram notification for follow-ups
 - **Memory**: 10 messages per patient

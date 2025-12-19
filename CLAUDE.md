@@ -124,6 +124,16 @@ Yara pre-fetches data on each message instead of using sub-workflows:
 
 **Language**: Brazilian Portuguese default. Diana switches to English if patient uses it.
 
+## WhatsApp Architecture
+
+**Current:** Dual phone numbers (Sofia = leads, Diana = patients) to avoid routing conflicts.
+
+**Future option:** Unified single-number workflow with routing:
+```
+Message → Lookup Patients sheet → Found? → Diana : Sofia
+```
+To implement: merge workflows, add patient lookup at entry, route based on result.
+
 ## Documentation
 
 | Doc | Purpose |
