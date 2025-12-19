@@ -32,7 +32,7 @@ AI-powered multi-agent system for a premium weight loss clinic, built with n8n A
                     ▼                            ▼                            ▼
          ┌─────────────────┐          ┌─────────────────┐          ┌─────────────────┐
          │  Google Sheets  │          │     Qdrant      │          │  Google Sheets  │
-         │   (Patients)    │          │  (Knowledge)    │          │ (Check-in Logs) │
+         │   (Patients)    │          │  (Knowledge)    │          │   (CheckIns)    │
          └────────┬────────┘          └────────┬────────┘          └────────┬────────┘
                   │                            │                            │
                   └────────────────────────────┼────────────────────────────┘
@@ -96,10 +96,15 @@ ragbot/
 │   ├── index.html                        # Analytics dashboard
 │   ├── app.js
 │   └── styles.css
+├── templates/                            # Google Sheets CSV templates
+│   ├── Patients.csv                      # Patient master data
+│   ├── CheckIns.csv                      # Simplified check-in log
+│   └── README.md                         # Import instructions
 └── docs/
     ├── SETUP.md                          # Sofia setup instructions
     ├── PATIENT_CHECKIN_SETUP.md          # Diana setup instructions
-    └── YARA_SETUP.md                     # Yara setup instructions
+    ├── YARA_SETUP.md                     # Yara setup instructions
+    └── WHATSAPP_SETUP.md                 # WhatsApp Business API setup
 ```
 
 ## Quick Start
@@ -176,10 +181,11 @@ Weekly check-in automation for patients on Tirzepatide (Mounjaro) treatment plan
 ### Features
 - **Scheduled Check-ins**: Sends messages every Saturday at 11 AM
 - **Treatment Tracking**: Monitors remaining weeks, deducts automatically
-- **Side Effect Detection**: Analyzes responses for side effects
+- **AI Summaries**: Generates summaries of patient responses (handles multi-message conversations)
+- **Follow-up Detection**: AI flags patients needing doctor follow-up
 - **Renewal Reminders**: Alerts at 2 weeks and 1 week remaining
-- **Team Handoff**: Telegram notifications with full patient info
-- **Google Sheets Integration**: Patient data and check-in logs
+- **Team Handoff**: Telegram notifications with full context (patient message, summary, Diana's response)
+- **Google Sheets Integration**: Patient data + simplified check-in log
 
 ### Treatment Plans
 
@@ -192,37 +198,28 @@ Weekly check-in automation for patients on Tirzepatide (Mounjaro) treatment plan
 ### Check-in Flow
 
 ```
-Saturday 11 AM
-      │
-      ▼
-Read Active Patients (Google Sheets)
-      │
-      ▼
-Filter: REMAINING_WEEKS > 0
-      │
-      ▼
-For Each Patient:
-      │
-      ├─► Generate personalized message (Claude Haiku 4.5)
-      │   - Greeting with name
-      │   - Current dose reminder
-      │   - Weeks remaining
-      │   - Well-being questions
-      │   - Side effects check
-      │
-      ├─► Send via WhatsApp
-      │
-      ├─► Log to CheckInLog sheet
-      │
-      ├─► Deduct 1 from REMAINING_WEEKS
-      │
-      └─► Check Treatment Status:
-          │
-          ├─► 2 weeks remaining: Notify team for renewal outreach
-          │
-          ├─► Last week: Mark complete + Notify team
-          │
-          └─► Ongoing: Continue
+OUTBOUND (Saturday 11 AM)                    INBOUND (Patient Response)
+─────────────────────────                    ─────────────────────────
+Read Active Patients                         Receive WhatsApp message
+        │                                            │
+        ▼                                            ▼
+Filter: REMAINING_WEEKS > 0                  Lookup patient in Sheets
+        │                                            │
+        ▼                                            ▼
+Generate AI check-in message                 Diana responds conversationally
+        │                                    (uses memory for multi-message)
+        ▼                                            │
+Send via WhatsApp                                    ▼
+        │                                    AI generates SUMMARY of report
+        ▼                                            │
+Deduct 1 from REMAINING_WEEKS                        ▼
+        │                                    Log to CheckIns sheet:
+        ▼                                    DATE | PATIENT | WEEK | SUMMARY | FOLLOW_UP
+Check Treatment Status:                              │
+├─► 2 weeks: Notify team                             ▼
+├─► Last week: Mark complete             If follow-up needed:
+└─► Ongoing: Continue                    → Alert team via Telegram
+                                           (includes full context)
 ```
 
 ### Renewal Flow
@@ -241,44 +238,45 @@ For Each Patient:
 
 ### Google Sheets Structure
 
-**Patients Sheet:**
+**Patients Sheet** (master data):
 ```
-NAME | PHONE | STARTING_DATE | TOTAL_WEEKS_CONTRACTED | REMAINING_WEEKS | CURRENT_DOSE | PAYMENT_METHOD | LAST_PAYMENT | NOTES | STATUS
+NAME | PHONE | STARTING_DATE | TOTAL_WEEKS_CONTRACTED | REMAINING_WEEKS | CURRENT_DOSE | PAYMENT_METHOD | LAST_PAYMENT | LAST_CHECKIN | STATUS
 ```
 
-**CheckInLog Sheet:**
+**CheckIns Sheet** (simplified log with AI summaries):
 ```
-DATE | PATIENT_NAME | PHONE | WEEK_NUMBER | DOSE_AT_CHECKIN | REMAINING_WEEKS | MESSAGE_SENT | STATUS | RESPONSE | SIDE_EFFECTS_REPORTED | FOLLOW_UP_NEEDED
+DATE | PATIENT_NAME | PHONE | WEEK | SUMMARY | FOLLOW_UP_NEEDED
 ```
+
+Import templates from `templates/` folder. See `templates/README.md` for instructions.
 
 ---
 
-## Environment Variables
+## Credentials Setup
+
+All credentials are configured in **n8n Credentials Manager** (not environment variables).
+
+| Credential | Type | Used By |
+|------------|------|---------|
+| `google-sheets-creds` | Google Sheets OAuth2 | Diana, Yara |
+| `anthropic-creds` | Anthropic API | Sofia, Diana, Yara |
+| `openai-creds` | OpenAI API | Sofia, Diana, Yara |
+| `qdrant-creds` | Qdrant API | Sofia, Diana, Yara |
+| `telegram-creds` | Telegram API | Diana, Yara |
+| `whatsapp-creds` | WhatsApp Business API | Sofia, Diana |
+| `whatsapp-trigger-creds` | WhatsApp Trigger | Sofia, Diana |
+| `whatsapp-bearer-creds` | HTTP Header Auth | Sofia (media download) |
+
+See [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md) for WhatsApp credential setup.
+
+### Environment Variables (for embedding script only)
 
 ```env
-# WhatsApp Business API
-WHATSAPP_PHONE_NUMBER_ID=your_phone_id
-WHATSAPP_ACCESS_TOKEN=your_token
-
-# AI Services
-ANTHROPIC_API_KEY=sk-ant-xxxxx
+# Used by: node scripts/embed_knowledge_base.js
 OPENAI_API_KEY=sk-xxxxx
-
-# Supabase (Sofia)
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJxxxxx
-
-# Google Sheets (Diana)
-PATIENT_SHEET_ID=your_spreadsheet_id
-
-# Vector Database
-QDRANT_URL=http://localhost:6333
+QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your_key
 QDRANT_COLLECTION_NAME=clinic_knowledge_base
-
-# Notifications
-TELEGRAM_BOT_TOKEN=123:ABC
-TELEGRAM_CHAT_ID=-100123
 ```
 
 ## Dashboard
@@ -319,8 +317,11 @@ tags: [treatment, protocol]
 priority: high
 ---
 ```
-3. Run Knowledge Base Setup workflow
-4. New content is immediately available to both agents
+3. Run the embedding script:
+```bash
+node scripts/embed_knowledge_base.js
+```
+4. New content is immediately available to all agents
 
 ---
 
@@ -361,13 +362,12 @@ See [docs/YARA_SETUP.md](docs/YARA_SETUP.md) for complete setup instructions.
 4. Configure credentials and activate
 5. Chat with Yara on Telegram!
 
-### Environment Variables (Yara-specific)
+### Configuration
 
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=-your_group_id
-YARA_AUTHORIZED_USER_ID=your_user_id
-```
+Yara uses hardcoded values in the workflow JSON. To change authorized users:
+1. Open `workflows/yara-executive-assistant.json`
+2. Update `TELEGRAM_CHAT_ID` and `YARA_AUTHORIZED_USER_ID` values
+3. Re-import the workflow into n8n
 
 ---
 

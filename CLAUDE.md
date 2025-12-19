@@ -17,7 +17,7 @@ Multi-agent AI system for a weight loss clinic built with **n8n AI Agent**, **Cl
 ```
 Management (Telegram) → Yara → [Google Sheets, Qdrant, Sofia Data]
                                        ↓
-Patients (WhatsApp) ← Diana ← Google Sheets (Patients + CheckInLog)
+Patients (WhatsApp) ← Diana ← Google Sheets (Patients + CheckIns)
 Leads (WhatsApp) ← Sofia ← Supabase + Qdrant
 ```
 
@@ -67,6 +67,15 @@ priority: high
 ```
 Categories: `institutional`, `treatments`, `faq`, `objection_handling`, `compliance`
 
+### Templates
+`templates/` contains CSV files for Google Sheets setup:
+- `Patients.csv` - Patient master data structure
+- `CheckIns.csv` - Simplified check-in log with AI summaries
+- `README.md` - Import instructions
+
+### Configuration
+All credentials are managed in **n8n Credentials Manager**. Other values (Sheet ID, Telegram IDs, etc.) are **hardcoded in workflow JSON files** - no environment variables needed except for the embedding script.
+
 ### Database Schema
 `database/schema.sql` defines Supabase tables:
 - `conversations` - Sofia lead tracking (stages: greeting → discovery → qualification → value_building → scheduling → confirmation)
@@ -92,7 +101,9 @@ Sofia's LLM output must be JSON with structured data extraction:
 - Scheduled: Saturdays 11 AM (America/Sao_Paulo)
 - Deducts `REMAINING_WEEKS` each check-in
 - Renewal alerts at 2 weeks and 1 week remaining
-- Side effects tracked and escalated via Telegram
+- **AI Summary System**: When patient responds (can be multiple messages), AI generates a summary
+- Logs to simplified `CheckIns` sheet: DATE | PATIENT_NAME | PHONE | WEEK | SUMMARY | FOLLOW_UP_NEEDED
+- Follow-up alerts include full context (patient message, summary, Diana's response)
 
 ### Yara Architecture (Consolidated)
 Yara pre-fetches data on each message instead of using sub-workflows:
@@ -112,6 +123,16 @@ Yara pre-fetches data on each message instead of using sub-workflows:
 - Severe side effects (Diana): persistent vomiting, allergic reactions, hypoglycemia
 
 **Language**: Brazilian Portuguese default. Diana switches to English if patient uses it.
+
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| `docs/SETUP.md` | Sofia setup guide |
+| `docs/PATIENT_CHECKIN_SETUP.md` | Diana setup guide |
+| `docs/YARA_SETUP.md` | Yara setup guide |
+| `docs/WHATSAPP_SETUP.md` | WhatsApp Business API credentials setup |
+| `templates/README.md` | Google Sheets import instructions |
 
 ## Dashboard
 
