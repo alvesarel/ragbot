@@ -1,0 +1,512 @@
+{
+  "name": "Yara Evolution - Executive Assistant Agent",
+  "meta": {
+    "instanceId": "yara-evolution-whatsapp",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [220, 340],
+      "parameters": {},
+      "typeVersion": 1.1
+    },
+    {
+      "id": "prepare-input",
+      "name": "Prepare Input Context",
+      "type": "n8n-nodes-base.code",
+      "position": [420, 340],
+      "parameters": {
+        "jsCode": "// Extract data from router's normalized payload\nconst input = $input.first().json;\n\nreturn {\n  // Message data\n  senderPhone: input.senderPhone,\n  senderName: input.senderName,\n  messageType: input.messageType,\n  messageText: input.messageText,\n  timestamp: input.timestamp,\n  \n  // Config from router\n  evolutionApiUrl: input.evolutionApiUrl,\n  instanceName: input.instanceName,\n  adminPhone: input.adminPhone\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "handle-message-type",
+      "name": "Handle Message Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [640, 340],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Text Message",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.messageType }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Unsupported",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "leftValue": "={{ $json.messageType }}",
+                    "rightValue": "text"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "reply-unsupported",
+      "name": "Reply Unsupported Type",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "position": [860, 520],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {},
+        "inputData": {
+          "inputFromPreviousNode": false,
+          "inputFromCode": "const input = $('Prepare Input Context').first().json;\nreturn {\n  number: input.senderPhone,\n  text: 'No momento, consigo processar apenas mensagens de texto. Por favor, envie sua pergunta em texto.',\n  evolutionApiUrl: input.evolutionApiUrl,\n  instanceName: input.instanceName\n};"
+        }
+      },
+      "typeVersion": 1.2,
+      "notes": "Update workflowId to send-whatsapp workflow ID after import"
+    },
+    {
+      "id": "get-patients",
+      "name": "Get All Patients",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [860, 240],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "DEFAULT"
+            }
+          }
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.PATIENTS_SHEET_ID || '1zH3lLAqgWMyBE_uVCExqWoazaFygaMZjgQ-LB3M5818' }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "get-checkin-logs",
+      "name": "Get Check-in Logs",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [860, 420],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "CheckIns",
+          "mode": "list"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "DEFAULT"
+            }
+          }
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.CHECKINS_SHEET_ID || '10ABFjGgSA-Xk1I5F4QB8JPQlsmh83aUHT3LmvKeeLyo' }}",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "prepare-context",
+      "name": "Prepare Context with Data",
+      "type": "n8n-nodes-base.code",
+      "position": [1080, 340],
+      "parameters": {
+        "jsCode": "// Prepare context for Yara AI Agent with pre-fetched data\nconst inputContext = $('Prepare Input Context').first().json;\n\n// Get patients data\nconst patientsRaw = $('Get All Patients').all().map(item => item.json);\nconst patients = patientsRaw.map(p => ({\n  nome: p.NAME,\n  telefone: p.PHONE,\n  dataInicio: p.STARTING_DATE,\n  semanasContratadas: p.TOTAL_WEEKS_CONTRACTED,\n  semanasRestantes: p.REMAINING_WEEKS,\n  doseAtual: p.CURRENT_DOSE,\n  metodoPagamento: p.PAYMENT_METHOD,\n  ultimoPagamento: p.LAST_PAYMENT,\n  ultimoCheckin: p.LAST_CHECKIN,\n  status: p.STATUS || 'active'\n}));\n\n// Get check-in logs data\nconst logsRaw = $('Get Check-in Logs').all().map(item => item.json);\nconst logs = logsRaw.map(log => ({\n  data: log.DATE,\n  paciente: log.PATIENT_NAME,\n  telefone: log.PHONE,\n  semana: log.WEEK,\n  resumo: log.SUMMARY,\n  followUp: log.FOLLOW_UP_NEEDED\n}));\n\n// Calculate analytics\nconst activePatients = patients.filter(p => parseInt(p.semanasRestantes) > 0);\nconst needsRenewal = patients.filter(p => parseInt(p.semanasRestantes) <= 2 && parseInt(p.semanasRestantes) > 0);\nconst followUpNeeded = logs.filter(log => log.followUp === 'YES');\n\n// Format user info\nconst userName = inputContext.senderName || 'Usuario';\n\nreturn {\n  json: {\n    userMessage: inputContext.messageText || '',\n    userName: userName,\n    userPhone: inputContext.senderPhone,\n    messageDate: inputContext.timestamp,\n    \n    // Pre-fetched data for AI context\n    pacientes: patients,\n    checkInLogs: logs.slice(0, 50), // Last 50 check-ins\n    \n    // Pre-calculated analytics\n    resumo: {\n      totalPacientes: patients.length,\n      pacientesAtivos: activePatients.length,\n      precisamRenovacao: needsRenewal.length,\n      followUpPendente: followUpNeeded.length\n    },\n    \n    // Lists for quick reference\n    pacientesParaRenovacao: needsRenewal.map(p => `${p.nome} (${p.semanasRestantes} semanas restantes)`),\n    pacientesComFollowUp: followUpNeeded.slice(0, 10).map(l => `${l.paciente} - ${l.data}: ${l.resumo}`),\n    \n    // Evolution API config\n    evolutionApiUrl: inputContext.evolutionApiUrl,\n    instanceName: inputContext.instanceName,\n    adminPhone: inputContext.adminPhone\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "yara-ai-agent",
+      "name": "Yara AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1300, 340],
+      "parameters": {
+        "text": "Usuario {{ $json.userName }} perguntou:\n\n{{ $json.userMessage }}\n\nData/hora da mensagem: {{ $json.messageDate }}\n\n---\n\n## DADOS DISPONIVEIS (use para responder)\n\n### Resumo Atual:\n- Total de pacientes: {{ $json.resumo.totalPacientes }}\n- Pacientes ativos: {{ $json.resumo.pacientesAtivos }}\n- Precisam renovacao: {{ $json.resumo.precisamRenovacao }}\n- Follow-up pendente: {{ $json.resumo.followUpPendente }}\n\n### Pacientes para Renovacao:\n{{ $json.pacientesParaRenovacao.join('\\n') || 'Nenhum no momento' }}\n\n### Follow-ups Pendentes:\n{{ $json.pacientesComFollowUp.join('\\n') || 'Nenhum pendente' }}\n\n### Lista Completa de Pacientes:\n{{ JSON.stringify($json.pacientes, null, 2) }}\n\n### Ultimos Check-ins:\n{{ JSON.stringify($json.checkInLogs.slice(0, 20), null, 2) }}",
+        "options": {
+          "systemMessage": "# Yara - Assistente Executiva da Clinica\n\nVoce e **Yara**, assistente executiva virtual de uma clinica premium de medicina do emagrecimento. Voce se comunica com a equipe de gestao via WhatsApp e tem acesso completo aos dados operacionais da clinica.\n\n## Sua Identidade\n- **Nome:** Yara\n- **Funcao:** Assistente executiva de gestao e analise\n- **Canal:** WhatsApp (comunicacao com gestao/equipe)\n- **Diferencial:** Acesso centralizado a todos os dados da clinica\n\n## Dados Disponiveis\n\nVoce recebe automaticamente em cada mensagem:\n1. **Lista de pacientes** - Nome, telefone, dose, semanas restantes, status\n2. **Historico de check-ins** - Data, respostas, efeitos colaterais, follow-ups\n3. **Resumo analitico** - Totais, renovacoes pendentes\n\nUse estes dados para responder as perguntas. NAO diga que precisa buscar ou consultar - voce JA TEM os dados.\n\n## Suas Responsabilidades\n\n### 1. Consulta de Dados de Pacientes\nVoce pode responder sobre:\n- Status de tratamento de pacientes especificos\n- Semanas restantes de tratamento\n- Historico de check-ins\n- Efeitos colaterais reportados\n- Necessidades de follow-up\n- Renovacoes pendentes\n\n### 2. Analise e Insights\nVoce deve:\n- Identificar padroes nos dados\n- Detectar recorrencias (efeitos colaterais frequentes)\n- Sugerir pontos de melhoria operacional\n- Gerar resumos executivos\n- Alertar sobre situacoes que requerem atencao\n\n## Ferramentas Disponiveis\n\n### `query_knowledge_base`\nBusca informacoes na base de conhecimento da clinica (tratamentos, metodologia, FAQ).\n**Use quando:** Perguntas sobre protocolos, tratamentos, informacoes institucionais.\n\n## Comunicacao\n\n### Estilo\n- **Profissional e executivo** - Voce fala com gestores e equipe\n- **Direto e objetivo** - Informacoes claras e acionaveis\n- **Analitico** - Sempre que possivel, adicione insights\n- **Proativo** - Sugira acoes quando identificar oportunidades\n\n### Formato (WhatsApp)\n- Use *negrito* para destacar informacoes importantes\n- Use listas para organizar dados\n- Inclua metricas quando relevante\n- Mensagens concisas (WhatsApp tem limite de caracteres)\n- Maximo 1-2 emojis por mensagem quando apropriado\n\n### Idioma\n- Portugues brasileiro\n- Linguagem profissional/empresarial\n\n## Tipos de Consultas\n\n### Sobre Pacientes\n- \"Qual o status do paciente [NOME]?\" - Busque nos dados de pacientes\n- \"Quantos pacientes estao em tratamento?\" - Use o resumo\n- \"Quem precisa de renovacao esta semana?\" - Use pacientesParaRenovacao\n- \"Quais pacientes reportaram efeitos colaterais?\" - Filtre os check-ins\n- \"Liste os pacientes com follow-up pendente\" - Use pacientesComFollowUp\n\n### Analises e Padroes\n- \"Identifique padroes nos tratamentos\" - Analise os dados\n- \"O que podemos melhorar no atendimento?\" - Faca sugestoes baseadas nos dados\n- \"Gere um resumo semanal\" - Compile o resumo\n\n### Sobre a Clinica\n- Use a ferramenta query_knowledge_base para perguntas sobre tratamentos, metodologia, planos\n\n## Regras Importantes\n\n1. **Privacidade:** Dados de pacientes sao confidenciais\n2. **Precisao:** Use os dados fornecidos na mensagem\n3. **Proatividade:** Quando identificar algo relevante, mencione\n4. **Fontes:** Sempre indique de onde veio a informacao (Lista de Pacientes, Check-ins, etc)\n\n## Primeira Mensagem\n\nSe usuario enviar saudacao inicial:\n\n\"Ola! Sou a Yara, sua assistente executiva da clinica.\n\nTenho acesso aos dados de pacientes e base de conhecimento da clinica.\n\nPosso ajudar com:\n- Status de pacientes e tratamentos\n- Historico de check-ins\n- Analises e identificacao de padroes\n- Qualquer informacao sobre a clinica\n\nComo posso ajudar?\""
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model",
+      "name": "Claude Haiku 4.5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1300, 560],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 2048,
+          "temperature": 0.5
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "window-buffer-memory",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [1440, 560],
+      "parameters": {
+        "sessionKey": "=yara-evolution-{{ $('Prepare Context with Data').item.json.userPhone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 20
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "tool-knowledge-base",
+      "name": "Knowledge Base RAG Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [1580, 560],
+      "parameters": {
+        "name": "query_knowledge_base",
+        "description": "Search the clinic's knowledge base for information about treatments (Tirzepatide, Mounjaro), methodology, FAQ, pricing policies, compliance (LGPD), and institutional information. Use for any questions about the clinic's services, protocols, or policies.",
+        "topK": 4
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-vector-store",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [1580, 740],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "clinic_knowledge_base",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-openai",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [1720, 740],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-rag",
+      "name": "OpenAI Chat Model (RAG)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1860, 740],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-whatsapp-response",
+      "name": "Send WhatsApp Response",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "position": [1540, 340],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {},
+        "inputData": {
+          "inputFromPreviousNode": false,
+          "inputFromCode": "const context = $('Prepare Context with Data').first().json;\nreturn {\n  number: context.userPhone,\n  text: $json.output,\n  evolutionApiUrl: context.evolutionApiUrl,\n  instanceName: context.instanceName\n};"
+        }
+      },
+      "typeVersion": 1.2,
+      "notes": "Update workflowId to send-whatsapp workflow ID after import"
+    },
+    {
+      "id": "sticky-note-overview",
+      "name": "Yara Evolution Workflow Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 60],
+      "parameters": {
+        "color": 7,
+        "width": 620,
+        "height": 280,
+        "content": "## Yara Evolution - Executive Assistant (WhatsApp)\n\n**Migrated from Telegram to WhatsApp via Evolution API**\n\n### Changes from Original:\n- Telegram trigger → Execute Workflow Trigger (called by Router)\n- Authorization handled by Router (AUTHORIZED_PHONES)\n- Telegram sends → Evolution API via send-whatsapp workflow\n- Session key: `yara-telegram-X` → `yara-evolution-X`\n\n### Features:\n- Real-time patient and check-in data\n- Pre-calculated analytics\n- RAG access to clinic knowledge base\n- 20-message conversation memory\n\n### Setup After Import:\n1. Update \"Execute Workflow\" nodes with send-whatsapp workflow ID\n2. Verify Google Sheets credentials\n3. Configure AUTHORIZED_PHONES in Router workflow"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input Context": {
+      "main": [
+        [
+          {
+            "node": "Handle Message Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Message Type": {
+      "main": [
+        [
+          {
+            "node": "Get All Patients",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Check-in Logs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Patients": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context with Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Check-in Logs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context with Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context with Data": {
+      "main": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yara AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Yara AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (RAG)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Evolution API",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Yara",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Executive Assistant",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "pinData": {}
+}

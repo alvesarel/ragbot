@@ -221,7 +221,7 @@
       "parameters": {
         "textBody": "={{ $json.output }}",
         "operation": "send",
-        "phoneNumberId": "your_phone_number_id",
+        "phoneNumberId": "942770825580464",
         "requestOptions": {},
         "additionalFields": {
           "previewUrl": false
@@ -441,7 +441,7 @@
       "credentials": {
         "whatsAppTriggerApi": {
           "id": "whatsapp-trigger-creds",
-          "name": "WhatsApp OAuth account"
+          "name": "WhatsApp Business API"
         }
       },
       "typeVersion": 1

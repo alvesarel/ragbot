@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinic AI Dashboard - Sofia & Diana</title>
+    <title>Clinic AI Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,481 +17,480 @@
                 <span class="logo-icon">🏥</span>
                 <span class="logo-text">Clinic AI</span>
             </div>
+
             <nav class="nav">
-                <div class="nav-section">
-                    <span class="nav-section-title">Sofia - Vendas</span>
-                    <a href="#" class="nav-item active" data-view="overview">
-                        <span class="nav-icon">📊</span>
-                        <span>Visao Geral</span>
-                    </a>
-                    <a href="#" class="nav-item" data-view="conversations">
-                        <span class="nav-icon">💬</span>
-                        <span>Conversas</span>
-                    </a>
-                    <a href="#" class="nav-item" data-view="analytics">
-                        <span class="nav-icon">📈</span>
-                        <span>Metricas</span>
-                    </a>
-                </div>
-                <div class="nav-section">
-                    <span class="nav-section-title">Diana - Check-ins</span>
-                    <a href="#" class="nav-item" data-view="diana-overview">
-                        <span class="nav-icon">💊</span>
-                        <span>Pacientes</span>
-                    </a>
-                    <a href="#" class="nav-item" data-view="diana-checkins">
-                        <span class="nav-icon">📋</span>
-                        <span>Check-ins</span>
-                    </a>
-                    <a href="#" class="nav-item" data-view="diana-renewals">
-                        <span class="nav-icon">🔔</span>
-                        <span>Renovacoes</span>
-                    </a>
-                </div>
-                <div class="nav-section">
-                    <a href="#" class="nav-item" data-view="settings">
-                        <span class="nav-icon">⚙️</span>
-                        <span>Configuracoes</span>
-                    </a>
-                </div>
+                <button class="nav-item active" data-view="overview">
+                    <span class="nav-icon">📊</span>
+                    <span>Overview</span>
+                </button>
+                <button class="nav-item" data-view="sofia">
+                    <span class="nav-icon">💬</span>
+                    <span>Sofia</span>
+                    <span class="status-dot" id="nav-status-sofia"></span>
+                </button>
+                <button class="nav-item" data-view="diana">
+                    <span class="nav-icon">💊</span>
+                    <span>Diana</span>
+                    <span class="status-dot" id="nav-status-diana"></span>
+                </button>
+                <button class="nav-item" data-view="yara">
+                    <span class="nav-icon">📈</span>
+                    <span>Yara</span>
+                    <span class="status-dot" id="nav-status-yara"></span>
+                </button>
+                <button class="nav-item" data-view="executions">
+                    <span class="nav-icon">📋</span>
+                    <span>Executions</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Settings</span>
+                </button>
             </nav>
+
             <div class="sidebar-footer">
-                <div class="agent-status">
-                    <div class="status-row">
-                        <div class="status-indicator online"></div>
-                        <span>Sofia Online</span>
-                    </div>
-                    <div class="status-row">
-                        <div class="status-indicator online"></div>
-                        <span>Diana Online</span>
-                    </div>
+                <div class="connection-badge" id="connection-badge">
+                    <span class="connection-dot"></span>
+                    <span>Checking...</span>
                 </div>
             </div>
         </aside>
 
         <!-- Main Content -->
         <main class="main">
-            <!-- Header -->
-            <header class="header">
-                <h1 id="page-title">Visao Geral</h1>
-                <div class="header-actions">
-                    <button class="btn btn-secondary" onclick="refreshData()">
-                        <span>🔄</span> Atualizar
+            <!-- Overview View -->
+            <section id="view-overview" class="view active">
+                <header class="view-header">
+                    <h1>Dashboard Overview</h1>
+                    <button class="btn btn-primary" id="btn-refresh">
+                        <span class="btn-icon">↻</span> Refresh
                     </button>
-                    <span class="last-update" id="last-update">Ultima atualizacao: --</span>
-                </div>
-            </header>
+                </header>
 
-            <!-- Sofia Overview View -->
-            <div id="view-overview" class="view active">
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">💬</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="stat-total">--</span>
-                            <span class="stat-label">Total Conversas</span>
+                <div class="agents-grid">
+                    <!-- Sofia Card -->
+                    <div class="agent-card" data-agent="sofia">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <span class="agent-avatar">👩‍💼</span>
+                                <div>
+                                    <h3>Sofia</h3>
+                                    <span class="agent-role">Lead Qualification</span>
+                                </div>
+                            </div>
+                            <span class="agent-status" id="status-sofia">--</span>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🟢</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="stat-active">--</span>
-                            <span class="stat-label">Ativas Agora</span>
+                        <div class="agent-channel">
+                            <span class="channel-icon">📱</span> WhatsApp
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📅</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="stat-scheduled">--</span>
-                            <span class="stat-label">Agendamentos</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🚨</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="stat-handoff">--</span>
-                            <span class="stat-label">Aguardando Humano</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Today's Stats -->
-                <div class="section">
-                    <h2>Hoje</h2>
-                    <div class="stats-row">
-                        <div class="mini-stat">
-                            <span class="mini-stat-value" id="stat-messages-today">--</span>
-                            <span class="mini-stat-label">Mensagens</span>
-                        </div>
-                        <div class="mini-stat">
-                            <span class="mini-stat-value" id="stat-conv-today">--</span>
-                            <span class="mini-stat-label">Novas Conversas</span>
-                        </div>
-                        <div class="mini-stat">
-                            <span class="mini-stat-value" id="stat-avg-msg">--</span>
-                            <span class="mini-stat-label">Media Msgs/Conversa</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recent Conversations -->
-                <div class="section">
-                    <h2>Conversas Recentes</h2>
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Contato</th>
-                                    <th>Estagio</th>
-                                    <th>Status</th>
-                                    <th>Mensagens</th>
-                                    <th>Ultima Atividade</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recent-conversations">
-                                <tr>
-                                    <td colspan="5" class="loading">Carregando...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Conversations View -->
-            <div id="view-conversations" class="view">
-                <div class="conversations-layout">
-                    <!-- Conversations List -->
-                    <div class="conversations-list">
-                        <div class="search-box">
-                            <input type="text" id="search-input" placeholder="Buscar por telefone ou nome...">
-                        </div>
-                        <div class="filter-tabs">
-                            <button class="filter-tab active" data-filter="all">Todas</button>
-                            <button class="filter-tab" data-filter="active">Ativas</button>
-                            <button class="filter-tab" data-filter="awaiting_human">Handoff</button>
-                            <button class="filter-tab" data-filter="scheduled">Agendadas</button>
-                        </div>
-                        <div id="conversations-list-items" class="list-items">
-                            <div class="loading">Carregando...</div>
-                        </div>
-                    </div>
-
-                    <!-- Conversation Detail -->
-                    <div class="conversation-detail" id="conversation-detail">
-                        <div class="empty-state">
-                            <span class="empty-icon">💬</span>
-                            <p>Selecione uma conversa</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Analytics View -->
-            <div id="view-analytics" class="view">
-                <div class="section">
-                    <h2>Funil de Conversao (30 dias)</h2>
-                    <div class="funnel-container" id="conversion-funnel">
-                        <div class="loading">Carregando...</div>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>Distribuicao por Estagio</h2>
-                    <div class="stage-chart" id="stage-distribution">
-                        <div class="loading">Carregando...</div>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>Metricas Diarias</h2>
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Entradas</th>
-                                    <th>Saidas</th>
-                                    <th>Usuarios</th>
-                                    <th>RAG Chunks</th>
-                                </tr>
-                            </thead>
-                            <tbody id="daily-metrics">
-                                <tr>
-                                    <td colspan="5" class="loading">Carregando...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Diana Overview View -->
-            <div id="view-diana-overview" class="view">
-                <div class="agent-header">
-                    <h2>Diana - Patient Check-in Agent</h2>
-                    <p>Tirzepatide weekly treatment follow-ups</p>
-                </div>
-
-                <!-- Diana Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="diana-total-patients">--</span>
-                            <span class="stat-label">Total Pacientes</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="diana-active-patients">--</span>
-                            <span class="stat-label">Em Tratamento</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⚠️</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="diana-renewals-needed">--</span>
-                            <span class="stat-label">Renovacoes Pendentes</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🏁</div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="diana-completed">--</span>
-                            <span class="stat-label">Tratamentos Concluidos</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Patient List -->
-                <div class="section">
-                    <h2>Pacientes Ativos</h2>
-                    <p class="section-note">Data sourced from Google Sheets (PATIENT_SHEET_ID)</p>
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Telefone</th>
-                                    <th>Dose Atual</th>
-                                    <th>Semanas Restantes</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="diana-patients-list">
-                                <tr>
-                                    <td colspan="5" class="info-message">
-                                        Configure Google Sheets integration to view patient data.
-                                        <br><small>See docs/PATIENT_CHECKIN_SETUP.md</small>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Treatment Plans -->
-                <div class="section">
-                    <h2>Planos de Tratamento</h2>
-                    <div class="treatment-plans">
-                        <div class="plan-card">
-                            <div class="plan-duration">4 semanas</div>
-                            <div class="plan-name">Starter</div>
-                            <div class="plan-desc">Avaliacao inicial</div>
-                        </div>
-                        <div class="plan-card">
-                            <div class="plan-duration">12 semanas</div>
-                            <div class="plan-name">Standard</div>
-                            <div class="plan-desc">Plano recomendado</div>
-                        </div>
-                        <div class="plan-card">
-                            <div class="plan-duration">16 semanas</div>
-                            <div class="plan-name">Extended</div>
-                            <div class="plan-desc">Melhores resultados</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Diana Check-ins View -->
-            <div id="view-diana-checkins" class="view">
-                <div class="section">
-                    <h2>Historico de Check-ins</h2>
-                    <p class="section-note">Weekly check-ins sent every Saturday at 11 AM</p>
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Paciente</th>
-                                    <th>Semana</th>
-                                    <th>Dose</th>
-                                    <th>Status</th>
-                                    <th>Efeitos Colaterais</th>
-                                    <th>Follow-up</th>
-                                </tr>
-                            </thead>
-                            <tbody id="diana-checkins-list">
-                                <tr>
-                                    <td colspan="7" class="info-message">
-                                        Check-in logs are stored in Google Sheets (CheckInLog sheet).
-                                        <br><small>Data will appear after first check-in cycle runs.</small>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Side Effects Tracking -->
-                <div class="section">
-                    <h2>Efeitos Colaterais Reportados</h2>
-                    <div class="side-effects-grid">
-                        <div class="side-effect-card">
-                            <div class="side-effect-name">Nausea</div>
-                            <div class="side-effect-count" id="se-nausea">--</div>
-                        </div>
-                        <div class="side-effect-card">
-                            <div class="side-effect-name">Fadiga</div>
-                            <div class="side-effect-count" id="se-fadiga">--</div>
-                        </div>
-                        <div class="side-effect-card">
-                            <div class="side-effect-name">Dor</div>
-                            <div class="side-effect-count" id="se-dor">--</div>
-                        </div>
-                        <div class="side-effect-card">
-                            <div class="side-effect-name">Outros</div>
-                            <div class="side-effect-count" id="se-outros">--</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Diana Renewals View -->
-            <div id="view-diana-renewals" class="view">
-                <div class="section">
-                    <h2>Renovacoes Pendentes</h2>
-                    <p class="section-note">Patients with 2 weeks or less remaining in treatment</p>
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Paciente</th>
-                                    <th>Telefone</th>
-                                    <th>Plano Atual</th>
-                                    <th>Semanas Restantes</th>
-                                    <th>Ultima Dose</th>
-                                    <th>Metodo Pagamento</th>
-                                    <th>Acao</th>
-                                </tr>
-                            </thead>
-                            <tbody id="diana-renewals-list">
-                                <tr>
-                                    <td colspan="7" class="info-message">
-                                        Renewal reminders are sent at 2 weeks and 1 week remaining.
-                                        <br><small>Team is notified via Telegram for follow-up.</small>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Renewal Flow Info -->
-                <div class="section">
-                    <h2>Fluxo de Renovacao</h2>
-                    <div class="flow-diagram">
-                        <div class="flow-step">
-                            <div class="flow-step-number">1</div>
-                            <div class="flow-step-content">
-                                <strong>2 Semanas Restantes</strong>
-                                <p>Diana envia lembrete e pergunta sobre renovacao</p>
-                                <p class="flow-step-action">Equipe notificada via Telegram</p>
+                        <div class="agent-stats">
+                            <div class="stat">
+                                <span class="stat-value" id="sofia-executions">--</span>
+                                <span class="stat-label">Executions (24h)</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="sofia-success">--</span>
+                                <span class="stat-label">Success Rate</span>
                             </div>
                         </div>
-                        <div class="flow-arrow">→</div>
-                        <div class="flow-step">
-                            <div class="flow-step-number">2</div>
-                            <div class="flow-step-content">
-                                <strong>1 Semana Restante</strong>
-                                <p>Ultima semana - Diana pergunta sobre experiencia e renovacao</p>
-                                <p class="flow-step-action">Tratamento marcado como concluido</p>
+                        <button class="btn btn-secondary btn-block" onclick="viewAgent('sofia')">View Details</button>
+                    </div>
+
+                    <!-- Diana Card -->
+                    <div class="agent-card" data-agent="diana">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <span class="agent-avatar">👩‍⚕️</span>
+                                <div>
+                                    <h3>Diana</h3>
+                                    <span class="agent-role">Patient Check-ins</span>
+                                </div>
+                            </div>
+                            <span class="agent-status" id="status-diana">--</span>
+                        </div>
+                        <div class="agent-channel">
+                            <span class="channel-icon">📱</span> WhatsApp
+                        </div>
+                        <div class="agent-stats">
+                            <div class="stat">
+                                <span class="stat-value" id="diana-executions">--</span>
+                                <span class="stat-label">Executions (24h)</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="diana-success">--</span>
+                                <span class="stat-label">Success Rate</span>
                             </div>
                         </div>
-                        <div class="flow-arrow">→</div>
-                        <div class="flow-step">
-                            <div class="flow-step-number">3</div>
-                            <div class="flow-step-content">
-                                <strong>Handoff para Equipe</strong>
-                                <p>Telegram com info completa do paciente</p>
-                                <p class="flow-step-action">Equipe contata para renovacao</p>
+                        <button class="btn btn-secondary btn-block" onclick="viewAgent('diana')">View Details</button>
+                    </div>
+
+                    <!-- Yara Card -->
+                    <div class="agent-card" data-agent="yara">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <span class="agent-avatar">👩‍💻</span>
+                                <div>
+                                    <h3>Yara</h3>
+                                    <span class="agent-role">Executive Assistant</span>
+                                </div>
+                            </div>
+                            <span class="agent-status" id="status-yara">--</span>
+                        </div>
+                        <div class="agent-channel">
+                            <span class="channel-icon">✈️</span> Telegram
+                        </div>
+                        <div class="agent-stats">
+                            <div class="stat">
+                                <span class="stat-value" id="yara-executions">--</span>
+                                <span class="stat-label">Executions (24h)</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="yara-success">--</span>
+                                <span class="stat-label">Success Rate</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary btn-block" onclick="viewAgent('yara')">View Details</button>
+                    </div>
+                </div>
+
+                <!-- Recent Executions -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Recent Executions</h2>
+                        <button class="btn btn-text" onclick="switchView('executions')">View All →</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="table" id="recent-executions-table">
+                            <thead>
+                                <tr>
+                                    <th>Workflow</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-executions">
+                                <tr><td colspan="4" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sofia View -->
+            <section id="view-sofia" class="view">
+                <header class="view-header">
+                    <div class="view-title">
+                        <button class="btn-back" onclick="switchView('overview')">←</button>
+                        <span class="agent-avatar">👩‍💼</span>
+                        <div>
+                            <h1>Sofia</h1>
+                            <span class="subtitle">Lead Qualification Agent • WhatsApp</span>
+                        </div>
+                    </div>
+                    <span class="agent-status large" id="status-sofia-detail">--</span>
+                </header>
+
+                <div class="agent-detail-grid">
+                    <div class="detail-card">
+                        <h3>Workflow Info</h3>
+                        <div class="info-list">
+                            <div class="info-row">
+                                <span class="info-label">Workflow ID</span>
+                                <code class="info-value" id="sofia-workflow-id">--</code>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Last Updated</span>
+                                <span class="info-value" id="sofia-updated">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Trigger Count</span>
+                                <span class="info-value" id="sofia-triggers">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-card">
+                        <h3>Execution Stats (24h)</h3>
+                        <div class="stats-row">
+                            <div class="stat-box">
+                                <span class="stat-number" id="sofia-total-24h">--</span>
+                                <span class="stat-text">Total</span>
+                            </div>
+                            <div class="stat-box success">
+                                <span class="stat-number" id="sofia-success-24h">--</span>
+                                <span class="stat-text">Success</span>
+                            </div>
+                            <div class="stat-box error">
+                                <span class="stat-number" id="sofia-error-24h">--</span>
+                                <span class="stat-text">Errors</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+
+                <div class="section">
+                    <h2>Recent Executions</h2>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Execution ID</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                    <th>Mode</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sofia-executions-list">
+                                <tr><td colspan="5" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Diana View -->
+            <section id="view-diana" class="view">
+                <header class="view-header">
+                    <div class="view-title">
+                        <button class="btn-back" onclick="switchView('overview')">←</button>
+                        <span class="agent-avatar">👩‍⚕️</span>
+                        <div>
+                            <h1>Diana</h1>
+                            <span class="subtitle">Patient Check-in Agent • WhatsApp</span>
+                        </div>
+                    </div>
+                    <span class="agent-status large" id="status-diana-detail">--</span>
+                </header>
+
+                <div class="agent-detail-grid">
+                    <div class="detail-card">
+                        <h3>Workflow Info</h3>
+                        <div class="info-list">
+                            <div class="info-row">
+                                <span class="info-label">Workflow ID</span>
+                                <code class="info-value" id="diana-workflow-id">--</code>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Last Updated</span>
+                                <span class="info-value" id="diana-updated">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Schedule</span>
+                                <span class="info-value">Saturdays 11 AM</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-card">
+                        <h3>Execution Stats (24h)</h3>
+                        <div class="stats-row">
+                            <div class="stat-box">
+                                <span class="stat-number" id="diana-total-24h">--</span>
+                                <span class="stat-text">Total</span>
+                            </div>
+                            <div class="stat-box success">
+                                <span class="stat-number" id="diana-success-24h">--</span>
+                                <span class="stat-text">Success</span>
+                            </div>
+                            <div class="stat-box error">
+                                <span class="stat-number" id="diana-error-24h">--</span>
+                                <span class="stat-text">Errors</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Recent Executions</h2>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Execution ID</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                    <th>Mode</th>
+                                </tr>
+                            </thead>
+                            <tbody id="diana-executions-list">
+                                <tr><td colspan="5" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Yara View -->
+            <section id="view-yara" class="view">
+                <header class="view-header">
+                    <div class="view-title">
+                        <button class="btn-back" onclick="switchView('overview')">←</button>
+                        <span class="agent-avatar">👩‍💻</span>
+                        <div>
+                            <h1>Yara</h1>
+                            <span class="subtitle">Executive Assistant • Telegram</span>
+                        </div>
+                    </div>
+                    <span class="agent-status large" id="status-yara-detail">--</span>
+                </header>
+
+                <div class="agent-detail-grid">
+                    <div class="detail-card">
+                        <h3>Workflow Info</h3>
+                        <div class="info-list">
+                            <div class="info-row">
+                                <span class="info-label">Workflow ID</span>
+                                <code class="info-value" id="yara-workflow-id">--</code>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Last Updated</span>
+                                <span class="info-value" id="yara-updated">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Trigger Count</span>
+                                <span class="info-value" id="yara-triggers">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-card">
+                        <h3>Execution Stats (24h)</h3>
+                        <div class="stats-row">
+                            <div class="stat-box">
+                                <span class="stat-number" id="yara-total-24h">--</span>
+                                <span class="stat-text">Total</span>
+                            </div>
+                            <div class="stat-box success">
+                                <span class="stat-number" id="yara-success-24h">--</span>
+                                <span class="stat-text">Success</span>
+                            </div>
+                            <div class="stat-box error">
+                                <span class="stat-number" id="yara-error-24h">--</span>
+                                <span class="stat-text">Errors</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Recent Executions</h2>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Execution ID</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Duration</th>
+                                    <th>Mode</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yara-executions-list">
+                                <tr><td colspan="5" class="loading">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Executions View -->
+            <section id="view-executions" class="view">
+                <header class="view-header">
+                    <h1>All Executions</h1>
+                    <div class="filter-group">
+                        <select id="filter-workflow" class="select">
+                            <option value="">All Workflows</option>
+                        </select>
+                        <select id="filter-status" class="select">
+                            <option value="">All Status</option>
+                            <option value="success">Success</option>
+                            <option value="error">Error</option>
+                            <option value="running">Running</option>
+                        </select>
+                    </div>
+                </header>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Workflow</th>
+                                <th>Execution ID</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                                <th>Duration</th>
+                                <th>Mode</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-executions-list">
+                            <tr><td colspan="6" class="loading">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             <!-- Settings View -->
-            <div id="view-settings" class="view">
-                <div class="section">
-                    <h2>Configuracoes do Supabase (Sofia)</h2>
-                    <form id="settings-form" class="settings-form">
-                        <div class="form-group">
-                            <label for="supabase-url">Supabase URL</label>
-                            <input type="url" id="supabase-url" placeholder="https://xxx.supabase.co">
-                        </div>
-                        <div class="form-group">
-                            <label for="supabase-key">Supabase Anon Key</label>
-                            <input type="password" id="supabase-key" placeholder="eyJhbGciOiJI...">
-                        </div>
-                        <button type="submit" class="btn btn-primary">Salvar e Conectar</button>
-                    </form>
-                    <div id="connection-status" class="connection-status"></div>
-                </div>
+            <section id="view-settings" class="view">
+                <header class="view-header">
+                    <h1>Settings</h1>
+                </header>
 
-                <div class="section">
-                    <h2>Configuracoes do Google Sheets (Diana)</h2>
-                    <div class="settings-info">
-                        <p>Diana usa Google Sheets para armazenar dados de pacientes.</p>
-                        <p><strong>Sheet ID:</strong> <code>PATIENT_SHEET_ID</code> (env variable)</p>
-                        <p><strong>Sheets necessarias:</strong></p>
-                        <ul>
-                            <li><code>Patients</code> - Dados dos pacientes</li>
-                            <li><code>CheckInLog</code> - Historico de check-ins</li>
-                        </ul>
-                        <p>Veja <a href="#">docs/PATIENT_CHECKIN_SETUP.md</a> para instrucoes completas.</p>
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <h3>n8n Connection</h3>
+                        <form id="settings-form">
+                            <div class="form-group">
+                                <label>n8n URL</label>
+                                <input type="url" id="input-n8n-url" placeholder="https://your-n8n.com">
+                            </div>
+                            <div class="form-group">
+                                <label>API Key</label>
+                                <input type="password" id="input-n8n-key" placeholder="n8n_api_...">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save & Connect</button>
+                        </form>
+                        <div id="settings-status" class="settings-status"></div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>Workflow IDs</h3>
+                        <div class="info-list">
+                            <div class="info-row">
+                                <span class="info-label">Sofia</span>
+                                <code class="info-value" id="settings-sofia-id">--</code>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Diana</span>
+                                <code class="info-value" id="settings-diana-id">--</code>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Yara</span>
+                                <code class="info-value" id="settings-yara-id">--</code>
+                            </div>
+                        </div>
+                        <p class="help-text">Workflow IDs are configured in config.js</p>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>About</h3>
+                        <div class="about-agents">
+                            <div class="about-agent">
+                                <strong>Sofia</strong> - Lead qualification via WhatsApp. Handles Meta Ads inquiries.
+                            </div>
+                            <div class="about-agent">
+                                <strong>Diana</strong> - Patient check-ins for Tirzepatide treatment. Weekly follow-ups.
+                            </div>
+                            <div class="about-agent">
+                                <strong>Yara</strong> - Executive assistant via Telegram. Analytics and management.
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div class="section">
-                    <h2>Sobre</h2>
-                    <div class="about-info">
-                        <h3>Sofia - Sales Assistant</h3>
-                        <p>WhatsApp assistant for clinic lead qualification and appointment scheduling.</p>
-                        <ul>
-                            <li>Claude Haiku 4.5 powered</li>
-                            <li>RAG with Qdrant knowledge base</li>
-                            <li>Window buffer memory (20 messages)</li>
-                        </ul>
-
-                        <h3>Diana - Patient Check-in Agent</h3>
-                        <p>Weekly check-in automation for Tirzepatide treatment patients.</p>
-                        <ul>
-                            <li>Claude Haiku 4.5 powered</li>
-                            <li>Google Sheets integration</li>
-                            <li>Automated renewal reminders</li>
-                            <li>Side effect detection</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+            </section>
         </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

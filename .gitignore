@@ -37,6 +37,9 @@ credentials/
 *.key
 *.cert
 
+# Dashboard config (contains API keys)
+dashboard/config.js
+
 # Backup files
 *.bak
 *.backup

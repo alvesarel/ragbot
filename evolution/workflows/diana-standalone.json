@@ -1,0 +1,1228 @@
+{
+  "name": "Diana Evolution - Standalone Patient Check-in",
+  "meta": {
+    "instanceId": "diana-evolution-standalone",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "evolution-webhook",
+      "name": "Evolution Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [220, 700],
+      "webhookId": "diana-evolution-webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "diana-evolution",
+        "options": {
+          "responseMode": "onReceived",
+          "responseCode": 200
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "filter-message-events",
+      "name": "Is Message Event?",
+      "type": "n8n-nodes-base.if",
+      "position": [420, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-message-event",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "filter-incoming",
+      "name": "Is Incoming Message?",
+      "type": "n8n-nodes-base.if",
+      "position": [620, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "not-from-me",
+              "leftValue": "={{ $json.body.data?.key?.fromMe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "normalize-inbound",
+      "name": "Normalize Inbound Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [820, 700],
+      "parameters": {
+        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '');\n\n// Normalized phone without country code for sheet lookup\nconst phoneNormalized = phone.startsWith('55') ? phone.slice(2) : phone;\n\n// Determine message type\nlet messageType = 'unsupported';\nlet messageText = '';\n\nif (message.conversation) {\n  messageType = 'text';\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageType = 'text';\n  messageText = message.extendedTextMessage.text;\n} else if (message.audioMessage) {\n  messageType = 'audio';\n} else if (message.videoMessage) {\n  messageType = 'video';\n} else if (message.imageMessage) {\n  messageType = 'image';\n}\n\nreturn {\n  senderPhone: phone,\n  senderPhoneNormalized: phoneNormalized,\n  senderName: data.pushName || phone,\n  messageType: messageType,\n  messageText: messageText,\n  messageId: key.id,\n  timestamp: new Date((data.messageTimestamp || 0) * 1000).toISOString()\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "lookup-patient",
+      "name": "Lookup Patient",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1020, 700],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "PHONE",
+              "lookupValue": "={{ $json.senderPhoneNormalized }}"
+            }
+          ]
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "1zH3lLAqgWMyBE_uVCExqWoazaFygaMZjgQ-LB3M5818",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-patient-found",
+      "name": "Patient Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [1220, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-patient-name",
+              "leftValue": "={{ $json.NAME }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "reply-not-registered",
+      "name": "Reply Not Registered",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1440, 860],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Normalize Inbound Payload').item.json.senderPhone }}\",\n  \"text\": \"Ola! Nao encontrei seu cadastro em nosso sistema de acompanhamento. Se voce e paciente da clinica, por favor entre em contato com nossa equipe para verificar seu cadastro.\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "prepare-response-context",
+      "name": "Prepare Response Context",
+      "type": "n8n-nodes-base.code",
+      "position": [1440, 700],
+      "parameters": {
+        "jsCode": "// Prepare context for patient response\nconst inbound = $('Normalize Inbound Payload').first().json;\nconst patient = $input.first().json;\n\n// Calculate week number\nconst startDate = new Date(patient.STARTING_DATE);\nconst today = new Date();\nconst weekNumber = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;\n\nreturn {\n  messageText: inbound.messageText,\n  messageType: inbound.messageType,\n  patientName: patient.NAME,\n  phone: inbound.senderPhone,\n  currentDose: patient.CURRENT_DOSE,\n  remainingWeeks: parseInt(patient.REMAINING_WEEKS),\n  totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n  weekNumber: weekNumber,\n  startDate: patient.STARTING_DATE,\n  paymentMethod: patient.PAYMENT_METHOD\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "handle-message-type",
+      "name": "Handle Message Type",
+      "type": "n8n-nodes-base.if",
+      "position": [1660, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-text",
+              "leftValue": "={{ $json.messageType }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "reply-unsupported",
+      "name": "Reply Unsupported Type",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1880, 860],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Normalize Inbound Payload').item.json.senderPhone }}\",\n  \"text\": \"Ola {{ $json.patientName }}! No momento consigo processar apenas mensagens de texto. Por favor, escreva sua mensagem.\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "response-ai-agent",
+      "name": "Diana AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1880, 700],
+      "parameters": {
+        "text": "Paciente {{ $json.patientName }} (Dose: {{ $json.currentDose }}, Semana {{ $json.weekNumber }} de {{ $json.totalWeeks }}, {{ $json.remainingWeeks }} semanas restantes) enviou:\n\n\"{{ $json.messageText }}\"\n\nResponda de forma apropriada. Se relatar efeitos colaterais, reconheca e aconselhe consultar o medico se forem graves.\n\nApos responder, inclua um bloco JSON com sua analise:\n```json\n{\"summary\": \"Resumo de 1-2 frases do relato do paciente\", \"follow_up_needed\": true/false, \"reason\": \"Motivo do acompanhamento ou nao\"}\n```",
+        "options": {
+          "systemMessage": "Voce e Diana, assistente medica para uma clinica de emagrecimento com Tirzepatida (Mounjaro).\n\n## Regras\n- Use portugues brasileiro (mude para ingles se o paciente usar)\n- Mensagens concisas (maximo 2-3 paragrafos curtos)\n- SEM EMOJIS - mensagens profissionais apenas\n- Sempre trate o paciente pelo nome\n- Reconheca preocupacoes e feedback\n- Para efeitos colaterais: valide, faca perguntas de acompanhamento, recomende medico se grave\n- Nunca forneca aconselhamento medico especifico\n\n## Marcar para Acompanhamento Se:\n- Efeitos colaterais graves (vomito persistente, dor intensa, reacao alergica)\n- Paciente quer parar o tratamento\n- Paciente parece angustiado\n- Paciente pergunta sobre renovacao\n- Qualquer preocupacao medica alem do seu escopo\n\n## Formato de Resposta\nPrimeiro forneca sua resposta ao paciente, depois adicione o bloco JSON de analise."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model-response",
+      "name": "Claude Haiku 4.5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1880, 920],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20241022",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "memory-response",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [2020, 920],
+      "parameters": {
+        "sessionKey": "=diana-evo-{{ $json.phone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "rag-tool",
+      "name": "Tirzepatide Knowledge",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [2160, 920],
+      "parameters": {
+        "name": "tirzepatide_knowledge",
+        "description": "Buscar informacoes sobre tratamento com Tirzepatida, dosagens, efeitos colaterais e cuidados com o paciente.",
+        "topK": 3
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "qdrant-response",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [2160, 1100],
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "clinic_knowledge_base",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "qdrant-creds",
+          "name": "Qdrant"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "embeddings-response",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [2300, 1100],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "openai-model-rag",
+      "name": "OpenAI Chat Model (RAG)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [2440, 1100],
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds",
+          "name": "OpenAI"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "parse-ai-response",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "position": [2100, 700],
+      "parameters": {
+        "jsCode": "// Parse AI response and extract summary/follow-up analysis\nconst context = $('Prepare Response Context').item.json;\nconst aiOutput = $json.output;\n\nlet summary = 'Check-in recebido';\nlet followUpNeeded = false;\nlet reason = '';\nlet patientMessage = '';\n\ntry {\n  const jsonMatch = aiOutput.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  if (jsonMatch) {\n    const analysis = JSON.parse(jsonMatch[1]);\n    summary = analysis.summary || summary;\n    followUpNeeded = analysis.follow_up_needed || false;\n    reason = analysis.reason || '';\n  }\n  patientMessage = aiOutput.replace(/```json[\\s\\S]*```/, '').trim();\n} catch (e) {\n  patientMessage = aiOutput;\n}\n\nreturn {\n  patientName: context.patientName,\n  phone: context.phone,\n  currentDose: context.currentDose,\n  remainingWeeks: context.remainingWeeks,\n  weekNumber: context.weekNumber,\n  totalWeeks: context.totalWeeks,\n  patientMessageText: context.messageText,\n  dianaResponse: patientMessage,\n  summary: summary,\n  followUpNeeded: followUpNeeded,\n  followUpReason: reason\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "send-response",
+      "name": "Send Response to Patient",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2320, 700],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phone }}\",\n  \"text\": {{ JSON.stringify($json.dianaResponse) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "log-checkin",
+      "name": "Log Check-in",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2540, 700],
+      "parameters": {
+        "operation": "append",
+        "sheetName": {
+          "__rl": true,
+          "value": "CheckIns",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "PATIENT_NAME": "={{ $json.patientName }}",
+            "PHONE": "={{ $json.phone }}",
+            "WEEK": "={{ $json.weekNumber }}",
+            "SUMMARY": "={{ $json.summary }}",
+            "FOLLOW_UP_NEEDED": "={{ $json.followUpNeeded ? 'YES' : 'NO' }}"
+          }
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "10ABFjGgSA-Xk1I5F4QB8JPQlsmh83aUHT3LmvKeeLyo",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-followup",
+      "name": "Needs Follow-up?",
+      "type": "n8n-nodes-base.if",
+      "position": [2760, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "followup-true",
+              "leftValue": "={{ $json.followUpNeeded }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "notify-team-followup",
+      "name": "Notify Team - Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2980, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*ACOMPANHAMENTO NECESSARIO*\\n\\nPaciente: {{ $json.patientName }}\\nTelefone: {{ $json.phone }}\\nSemana: {{ $json.weekNumber }} de {{ $json.totalWeeks }}\\nDose: {{ $json.currentDose }}\\n\\nMensagem do paciente:\\n{{ $json.patientMessageText }}\\n\\nResumo: {{ $json.summary }}\\nMotivo: {{ $json.followUpReason }}\\n\\nResposta da Diana:\\n{{ $json.dianaResponse }}\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "schedule-trigger",
+      "name": "Weekly Check-in Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [220, 340],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": ["saturday"],
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "get-patients",
+      "name": "Get Active Patients",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [440, 340],
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "options": {},
+        "documentId": {
+          "__rl": true,
+          "value": "1zH3lLAqgWMyBE_uVCExqWoazaFygaMZjgQ-LB3M5818",
+          "mode": "id"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "filter-active",
+      "name": "Filter Active Patients",
+      "type": "n8n-nodes-base.filter",
+      "position": [660, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ parseInt($json['REMAINING_WEEKS']) }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "prepare-patient-context",
+      "name": "Prepare Patient Context",
+      "type": "n8n-nodes-base.code",
+      "position": [880, 340],
+      "parameters": {
+        "jsCode": "const patient = $input.first().json;\n\nconst startDate = new Date(patient.STARTING_DATE);\nconst today = new Date();\nconst weekNumber = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;\n\nconst remainingWeeks = parseInt(patient.REMAINING_WEEKS);\nconst isTwoWeeksRemaining = remainingWeeks === 2;\nconst isLastWeek = remainingWeeks === 1;\n\nlet phone = patient.PHONE.toString().replace(/\\D/g, '');\nif (!phone.startsWith('55')) {\n  phone = '55' + phone;\n}\n\nreturn {\n  patientName: patient.NAME,\n  phone: phone,\n  currentDose: patient.CURRENT_DOSE,\n  remainingWeeks: remainingWeeks,\n  totalWeeks: parseInt(patient.TOTAL_WEEKS_CONTRACTED),\n  weekNumber: weekNumber,\n  startDate: patient.STARTING_DATE,\n  isTwoWeeksRemaining: isTwoWeeksRemaining,\n  isLastWeek: isLastWeek,\n  needsRenewalReminder: isTwoWeeksRemaining || isLastWeek\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "checkin-ai-agent",
+      "name": "Check-in AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1100, 340],
+      "parameters": {
+        "text": "Gere uma mensagem de check-in semanal personalizada para este paciente:\n\n**Nome:** {{ $json.patientName }}\n**Semana Atual:** {{ $json.weekNumber }} de {{ $json.totalWeeks }}\n**Semanas Restantes:** {{ $json.remainingWeeks }}\n**Dose Atual:** {{ $json.currentDose }}\n**Duas Semanas Restantes:** {{ $json.isTwoWeeksRemaining }}\n**Ultima Semana:** {{ $json.isLastWeek }}\n\nGere uma mensagem calorosa e profissional de check-in em portugues. Inclua:\n1. Saudacao com o nome\n2. Lembrete da dose atual de Tirzepatida ({{ $json.currentDose }})\n3. Quantas semanas restam ({{ $json.remainingWeeks }})\n4. Pergunte como esta se sentindo\n5. Pergunte sobre efeitos colaterais\n6. Pergunte se precisa de algo\n\nSe DUAS SEMANAS RESTANTES: Lembre que o plano esta terminando, pergunte sobre renovacao.\nSe ULTIMA SEMANA: Check-in final, pergunte sobre experiencia e interesse em renovacao.",
+        "options": {
+          "systemMessage": "Voce e Diana, assistente medica carinhosa para uma clinica de emagrecimento com Tirzepatida (Mounjaro).\n\n## Regras\n- Use portugues brasileiro\n- Mensagens concisas (maximo 3-4 paragrafos curtos)\n- SEM EMOJIS - mensagens profissionais\n- Sempre trate o paciente pelo nome\n- Sempre mencione a dose atual\n- Nunca forneca aconselhamento medico\n- Incentive contato com medico para preocupacoes"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "haiku-model-checkin",
+      "name": "Claude Haiku 4.5 (Check-in)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1100, 560],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20241022",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "memory-checkin",
+      "name": "Window Buffer Memory (Check-in)",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [1240, 560],
+      "parameters": {
+        "sessionKey": "=diana-evo-{{ $json.phone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "send-checkin",
+      "name": "Send Check-in Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1340, 340],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Prepare Patient Context').item.json.phone }}\",\n  \"text\": {{ JSON.stringify($json.output) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "update-remaining-weeks",
+      "name": "Deduct Remaining Week",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1560, 340],
+      "parameters": {
+        "operation": "update",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "REMAINING_WEEKS": "={{ $('Prepare Patient Context').item.json.remainingWeeks - 1 }}",
+            "LAST_CHECKIN": "={{ $now.format('yyyy-MM-dd') }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1zH3lLAqgWMyBE_uVCExqWoazaFygaMZjgQ-LB3M5818",
+          "mode": "id"
+        },
+        "matchingColumns": ["NAME"]
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-treatment-status",
+      "name": "Check Treatment Status",
+      "type": "n8n-nodes-base.switch",
+      "position": [1780, 340],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Last Week",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isLastWeek }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Two Weeks Left",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.isTwoWeeksRemaining }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Ongoing",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false"
+                    },
+                    "leftValue": "={{ $('Prepare Patient Context').item.json.needsRenewalReminder }}"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "mark-complete",
+      "name": "Mark Treatment Complete",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2000, 240],
+      "parameters": {
+        "operation": "update",
+        "sheetName": {
+          "__rl": true,
+          "value": "Patients",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "STATUS": "completed"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1zH3lLAqgWMyBE_uVCExqWoazaFygaMZjgQ-LB3M5818",
+          "mode": "id"
+        },
+        "matchingColumns": ["NAME"]
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets OAuth"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "notify-team-final",
+      "name": "Notify Team - Final Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2220, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*TRATAMENTO FINALIZADO*\\n\\nPaciente: {{ $('Prepare Patient Context').item.json.patientName }}\\nTelefone: {{ $('Prepare Patient Context').item.json.phone }}\\nPlano: {{ $('Prepare Patient Context').item.json.totalWeeks }} semanas\\nDose Final: {{ $('Prepare Patient Context').item.json.currentDose }}\\n\\nAcao: Entrar em contato para discutir renovacao.\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "notify-team-two-weeks",
+      "name": "Notify Team - 2 Weeks",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2000, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/check-in-pacientes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*LEMBRETE DE RENOVACAO*\\n\\nPaciente: {{ $('Prepare Patient Context').item.json.patientName }}\\nTelefone: {{ $('Prepare Patient Context').item.json.phone }}\\n2 semanas restantes\\nDose: {{ $('Prepare Patient Context').item.json.currentDose }}\\n\\nAcao: Entrar em contato sobre opcoes de renovacao.\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "sticky-note-main",
+      "name": "Main Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 60],
+      "parameters": {
+        "color": 7,
+        "width": 620,
+        "height": 220,
+        "content": "## Diana Evolution - Standalone Patient Check-in\n\n**Independent workflow with own webhook - no router needed**\n\n### Configuration (Hardcoded)\n- **Evolution API:** https://evolution-api-production-9395.up.railway.app\n- **Instance:** check-in-pacientes\n- **Support Phone:** 5511999724691\n\n### Webhook URL\n`https://your-n8n-url/webhook/diana-evolution`\n\n### Two Flows\n1. **Outbound (Saturday 11 AM):** Scheduled check-ins to active patients\n2. **Inbound:** Handles patient responses via webhook"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Evolution Webhook": {
+      "main": [
+        [
+          {
+            "node": "Is Message Event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Message Event?": {
+      "main": [
+        [
+          {
+            "node": "Is Incoming Message?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Is Incoming Message?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inbound Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Normalize Inbound Payload": {
+      "main": [
+        [
+          {
+            "node": "Lookup Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Patient": {
+      "main": [
+        [
+          {
+            "node": "Patient Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Not Registered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response Context": {
+      "main": [
+        [
+          {
+            "node": "Handle Message Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Message Type": {
+      "main": [
+        [
+          {
+            "node": "Diana AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diana AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Diana AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Diana AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tirzepatide Knowledge": {
+      "ai_tool": [
+        [
+          {
+            "node": "Diana AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Tirzepatide Knowledge",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (RAG)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Tirzepatide Knowledge",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Response to Patient": {
+      "main": [
+        [
+          {
+            "node": "Log Check-in",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Check-in": {
+      "main": [
+        [
+          {
+            "node": "Needs Follow-up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Follow-up?": {
+      "main": [
+        [
+          {
+            "node": "Notify Team - Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Weekly Check-in Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Active Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Patients": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Patients": {
+      "main": [
+        [
+          {
+            "node": "Prepare Patient Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Patient Context": {
+      "main": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check-in AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Check-in Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5 (Check-in)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory (Check-in)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Check-in AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Check-in Message": {
+      "main": [
+        [
+          {
+            "node": "Deduct Remaining Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduct Remaining Week": {
+      "main": [
+        [
+          {
+            "node": "Check Treatment Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Treatment Status": {
+      "main": [
+        [
+          {
+            "node": "Mark Treatment Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Team - 2 Weeks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Mark Treatment Complete": {
+      "main": [
+        [
+          {
+            "node": "Notify Team - Final Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Diana",
+      "id": "2"
+    },
+    {
+      "name": "Evolution API",
+      "id": "7"
+    },
+    {
+      "name": "Standalone",
+      "id": "8"
+    }
+  ],
+  "pinData": {}
+}
