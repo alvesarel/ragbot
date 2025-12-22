@@ -11,15 +11,14 @@ requires_handoff: false
 ## Como Funciona Nosso Tratamento
 
 ### Abordagem Medica
-Trabalhamos com **medicina do emagrecimento**, uma especialidade que utiliza medicamentos aprovados pela ANVISA para auxiliar no processo de perda de peso de forma segura e eficaz.
+Trabalhamos com **medicina do emagrecimento*, com protocolos de emagrecimento com a medicação Tirzepatida
 
 ### Medicamentos Utilizados
 Nossos protocolos podem incluir:
-- **Semaglutida** (Ozempic, Wegovy)
 - **Tirzepatida** (Mounjaro)
 - Outros medicamentos conforme indicacao medica individual
 
-Estes sao medicamentos da classe **GLP-1**, que atuam:
+Estes sao medicamentos da classe **analogos do GLP-1**, que atuam:
 - Reduzindo o apetite
 - Aumentando a saciedade
 - Melhorando o controle glicemico
@@ -32,6 +31,7 @@ Estes sao medicamentos da classe **GLP-1**, que atuam:
 - Analise de historico de saude
 - Exame de bioimpedancia (composicao corporal)
 - Definicao do protocolo personalizado
+- Criação de planejamento alimentar completo e individualizado 
 
 #### 2. Inicio do Tratamento
 - Prescricao dos medicamentos adequados
@@ -39,9 +39,9 @@ Estes sao medicamentos da classe **GLP-1**, que atuam:
 - Definicao de metas realistas
 
 #### 3. Acompanhamento Continuo
-- Consultas de retorno regulares
+- Consultas semanais,  para aplicação e monitoramento do peso.
 - Ajustes no protocolo conforme necessario
-- Monitoramento de resultados e efeitos
+- Monitoramento de resultados e efeitos, com bioimpedancia toda semana
 - Suporte via WhatsApp entre consultas
 
 #### 4. Manutencao
@@ -59,11 +59,12 @@ Nao existe formula unica. Cada protocolo e desenvolvido especificamente para o p
 - Ajustes rapidos quando necessario
 - Equipe disponivel para duvidas
 
-### Retorno Garantido
-Se precisar de ajustes nos primeiros 30 dias, o retorno e por nossa conta.
-
 ## O Que NAO Fazemos
 - Nao vendemos dietas milagrosas
 - Nao prometemos resultados especificos
 - Nao prescrevemos sem avaliacao adequada
 - Nao substituimos acompanhamento por promessas
+
+## Valores
+- Valor de investimento a partir de R$3000,00 para o protocolo de 1 mes. Protocolos de maior duração o custo por mês fica menor, detalhes serão passados em consulta a depender da necessidade de cada paciente.
+- Valor de investimento da consulta inicial é de R$700,00 e inclui retorno em até 30 dias.

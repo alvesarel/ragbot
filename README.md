@@ -63,17 +63,25 @@ AI-powered multi-agent system for a premium weight loss clinic, built with n8n A
 | Vector DB | Qdrant | Qdrant |
 | Embeddings | OpenAI text-embedding-3-small | OpenAI text-embedding-3-small |
 | Data Storage | Supabase | Google Sheets |
-| WhatsApp | Official Business Cloud API | Official Business Cloud API |
+| WhatsApp | Official API or Evolution API | Official API or Evolution API |
 | Notifications | Telegram | Telegram |
 
 ## Project Structure
 
 ```
 ragbot/
-├── workflows/
+├── workflows/                            # Meta WhatsApp API workflows
 │   ├── sofia-alternative-flow.json       # Sofia: Lead qualification (WhatsApp)
+│   ├── sofia-zapi-flow.json              # Sofia: Z-API alternative
 │   ├── diana-patient-checkin.json        # Diana: Patient check-ins (WhatsApp)
-│   └── yara-executive-assistant.json     # Yara: Executive assistant (Telegram, consolidated)
+│   └── yara-executive-assistant.json     # Yara: Executive assistant (Telegram)
+├── evolution/                            # Evolution API (self-hosted WhatsApp)
+│   ├── README.md                         # Setup guide
+│   ├── docker-compose.yml                # Local development
+│   └── workflows/                        # Standalone Evolution workflows
+│       ├── sofia-standalone.json
+│       ├── diana-standalone.json
+│       └── yara-evolution.json
 ├── knowledge-base/                       # RAG documents
 │   ├── institutional/
 │   │   └── about_clinic.md
@@ -124,6 +132,7 @@ ragbot/
 
 - **Sofia Setup**: See [docs/SETUP.md](docs/SETUP.md)
 - **Diana Setup**: See [docs/PATIENT_CHECKIN_SETUP.md](docs/PATIENT_CHECKIN_SETUP.md)
+- **Evolution API**: See [evolution/README.md](evolution/README.md)
 
 ---
 
@@ -150,11 +159,11 @@ WhatsApp assistant for lead qualification, value building, and appointment sched
 
 ### Sofia Personality
 
-- Warm, caring, professional
+- Professional, concise, empathetic
 - Portuguese (Brazilian) primary language
-- Maximum 1-2 emojis per message
+- NO emojis - clean, professional messages
 - Natural conversational data collection
-- Never pushy, always empathetic
+- Never pushy, always respectful
 
 ### Pricing Rules
 
@@ -373,7 +382,7 @@ Yara uses hardcoded values in the workflow JSON. To change authorized users:
 
 ## WhatsApp Architecture
 
-### Current Setup: Dual Phone Numbers
+### Option 1: Official Meta API (Dual Numbers)
 Sofia and Diana use **separate WhatsApp Business numbers** to avoid message routing conflicts:
 
 | Agent | Phone Number | Purpose |
@@ -381,14 +390,27 @@ Sofia and Diana use **separate WhatsApp Business numbers** to avoid message rout
 | Sofia | Leads line | Meta Ads, new inquiries |
 | Diana | Patients line | Existing patient check-ins |
 
-### Future Option: Unified Workflow
-A single WhatsApp number with smart routing is possible:
+### Option 2: Evolution API (Single Number)
+Self-hosted WhatsApp integration with intelligent routing:
+
 ```
-Message arrives → Lookup in Patients sheet
-  ├─► Found → Diana logic (patient)
-  └─► Not found → Sofia logic (lead)
+                                    ┌→ Sofia (unknown contact = lead)
+WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
+       (Railway)                           └→ Yara (authorized team member)
 ```
-This would require merging workflows into a single unified agent with routing logic.
+
+**Routing Logic:**
+1. Sender in `AUTHORIZED_PHONES` → Yara
+2. Sender in Patients sheet → Diana
+3. Otherwise → Sofia
+
+**Setup:** See `evolution/README.md` for deployment guide.
+
+| Feature | Official API | Evolution API |
+|---------|--------------|---------------|
+| Setup | Complex (Meta approval) | Simple (QR scan) |
+| Cost | Per-message | Self-hosted (free) |
+| Stability | High | Medium |
 
 ---
 

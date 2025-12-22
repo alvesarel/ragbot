@@ -28,13 +28,8 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 
 ### Escala de Doses Padrao
 
-| Fase | Dose | Duracao Tipica |
-|------|------|----------------|
-| Inicial | 2.5 mg/semana | 4 semanas |
-| Titulacao 1 | 5 mg/semana | 4 semanas |
-| Titulacao 2 | 7.5 mg/semana | 4 semanas |
-| Titulacao 3 | 10 mg/semana | 4 semanas |
-| Manutencao | 10-15 mg/semana | Continuo |
+- Normalmente pacientes iniciam com 5mg semanais, a não ser casos especificos.
+- Progredimos dose de acordo coma a velocidade de perda de peso do paciente, sempre observando a massa muscular para não causar perda muscular e consequente perda de metabolismo.
 
 ### Importante sobre Dosagem
 - A titulacao e **gradual** para minimizar efeitos colaterais
@@ -91,10 +86,10 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 
 ## Planos de Tratamento Disponiveis
 
-### Plano 4 Semanas (Starter)
+### Plano 4 Semanas
 - Plano inicial para novos pacientes
 - Ideal para avaliar tolerancia ao medicamento
-- Dose inicial de 2.5mg/semana
+- Dose inicial de 5mg/semana
 - Permite ajuste antes de compromisso maior
 
 ### Plano 12 Semanas (Standard)
@@ -103,11 +98,7 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 - Permite avaliacao de resposta
 - Resultados visiveis na maioria dos pacientes
 
-### Plano 16 Semanas (Extended)
-- Plano estendido para melhores resultados
-- Inclui fase de titulacao e manutencao
-- Tempo para ajustes de estilo de vida
-- Resultados mais significativos e sustentaveis
+## outras durações de acompanhamento mediante avaliação medica
 
 ### Renovacao de Plano
 - Lembretes enviados com 2 semanas de antecedencia

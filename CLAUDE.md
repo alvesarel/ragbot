@@ -49,10 +49,21 @@ curl -X PUT 'http://localhost:6333/collections/clinic_knowledge_base' \
 
 ```
 ragbot/
-├── workflows/               # n8n workflow JSON exports
+├── workflows/               # n8n workflow JSON exports (Meta WhatsApp API)
 │   ├── sofia-alternative-flow.json    # Lead qualification (WhatsApp)
+│   ├── sofia-zapi-flow.json           # Lead qualification (Z-API alternative)
 │   ├── diana-patient-checkin.json     # Patient check-ins (WhatsApp)
 │   └── yara-executive-assistant.json  # Executive assistant (Telegram)
+├── evolution/               # Evolution API integration (self-hosted WhatsApp)
+│   ├── README.md            # Comprehensive setup guide
+│   ├── .env.example         # Environment variables template
+│   ├── docker-compose.yml   # Local development setup
+│   ├── scripts/
+│   │   └── setup-webhooks.sh    # Webhook configuration script
+│   └── workflows/           # Standalone Evolution API workflows
+│       ├── sofia-standalone.json    # Sofia with Evolution API
+│       ├── diana-standalone.json    # Diana with Evolution API
+│       └── yara-evolution.json      # Yara with Evolution API
 ├── prompts/                 # Agent system prompts (markdown)
 │   ├── system-prompt.md     # Sofia personality/rules
 │   ├── diana-prompt.md      # Diana personality/rules
@@ -316,7 +327,7 @@ QDRANT_COLLECTION_NAME=clinic_knowledge_base
 **Language**: Brazilian Portuguese default. Diana switches to English if patient uses it.
 
 **Communication Style**:
-- Sofia: Warm, 1-2 emojis per message (💚 ✨ 😊)
+- Sofia: Professional, concise, NO emojis
 - Diana: Professional, NO emojis
 - Yara: Executive/analytical, minimal emojis
 
@@ -331,6 +342,46 @@ QDRANT_COLLECTION_NAME=clinic_knowledge_base
 Message → Lookup Patients sheet → Found? → Diana : Sofia
 ```
 To implement: merge workflows, add patient lookup at entry, route based on result.
+
+---
+
+## Evolution API Integration
+
+Alternative WhatsApp integration using self-hosted Evolution API (Baileys-based) instead of official Meta API.
+
+### Architecture
+
+```
+                                    ┌→ Sofia (unknown contact = lead)
+WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
+       (Railway)        ↑                   └→ Yara (authorized team member)
+                 n8n HTTP Request
+```
+
+### Routing Logic
+1. Sender in `AUTHORIZED_PHONES` → Yara
+2. Sender in Patients Google Sheet → Diana
+3. Otherwise → Sofia
+
+### Deployment Options
+- **Railway** (recommended): Deploy `atendai/evolution-api:latest` with persistent volume
+- **Docker**: Use `evolution/docker-compose.yml` for local development
+
+### Key Differences from Official API
+
+| Feature | Official API | Evolution API |
+|---------|--------------|---------------|
+| Stability | High | Medium (WhatsApp Web protocol) |
+| Setup | Complex (Meta approval) | Simple (QR scan) |
+| Cost | Per-message pricing | Self-hosted (free) |
+| Templates | Required for outbound | Not needed |
+| Risk | Low | Medium (unofficial) |
+
+### Credentials
+- `evolution-api-creds` - Header auth with API key
+
+### Setup Guide
+See `evolution/README.md` for complete deployment instructions.
 
 ---
 
@@ -390,4 +441,5 @@ To implement: merge workflows, add patient lookup at entry, route based on resul
 | `docs/YARA_SETUP.md` | Yara setup guide |
 | `docs/WHATSAPP_SETUP.md` | WhatsApp Business API credentials setup |
 | `docs/ROADMAP.md` | Future improvements and planned features |
+| `evolution/README.md` | Evolution API setup and deployment guide |
 | `templates/README.md` | Google Sheets import instructions |

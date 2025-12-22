@@ -7,9 +7,6 @@ requires_handoff: false
 ---
 
 # Sobre a Clinica / About the Clinic
-
-## PT-BR
-
 ### Quem Somos
 Somos uma clinica especializada em medicina do emagrecimento, oferecendo tratamentos medicamentosos de ultima geracao com acompanhamento medico personalizado e continuo.
 
@@ -24,32 +21,8 @@ Transformar vidas atraves da medicina do emagrecimento, combinando ciencia, tecn
 - **Etica**: Medicina serio, sem promessas milagrosas
 
 ### Por que Somos Diferentes
-1. **Equipe Especializada**: Medicos focados exclusivamente em medicina do emagrecimento
-2. **Protocolos Modernos**: Medicamentos GLP-1 de ultima geracao (Semaglutida, Tirzepatida)
+1. **Equipe Especializada**: Dr. Guilherme Leitner, especialista em medicina do emagrecimento e tratamentos hormonais
+2. **Protocolos Modernos**: Medicamentos GLP-1 de ultima geracao (Tirzepatida), Lipedema, Implantes Hormonais
 3. **Acompanhamento Proximo**: Check-ins frequentes, nao apenas consultas esporadicas
-4. **Retornos Inclusos**: Consultas de acompanhamento sem custo adicional
+4. **Retornos Inclusos**: Desde que realizado dentro de 30 dias da consulta inicial.
 5. **Suporte Continuo**: Equipe disponivel para duvidas entre consultas
-
----
-
-## EN
-
-### Who We Are
-We are a clinic specialized in weight loss medicine, offering cutting-edge medical treatments with personalized and continuous medical follow-up.
-
-### Our Mission
-Transform lives through weight loss medicine, combining science, technology, and humanized care for sustainable results.
-
-### Our Values
-- **Excellence**: We use evidence-based medical protocols
-- **Personalization**: Each patient is unique, so is each treatment
-- **Follow-up**: We don't abandon our patients - we're present at every step
-- **Transparency**: Clear communication about expectations and results
-- **Ethics**: Serious medicine, no miracle promises
-
-### Why We're Different
-1. **Specialized Team**: Doctors focused exclusively on weight loss medicine
-2. **Modern Protocols**: Latest generation GLP-1 medications (Semaglutide, Tirzepatide)
-3. **Close Follow-up**: Frequent check-ins, not just sporadic appointments
-4. **Included Returns**: Follow-up consultations at no additional cost
-5. **Continuous Support**: Team available for questions between appointments
