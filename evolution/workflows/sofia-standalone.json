@@ -560,16 +560,6 @@
       "typeVersion": 4.2
     },
     {
-      "id": "prepare-text-for-agent",
-      "name": "Prepare Text for Agent",
-      "type": "n8n-nodes-base.code",
-      "position": [1240, 340],
-      "parameters": {
-        "jsCode": "const data = $input.first().json;\n\nreturn {\n  text: data.messageText,\n  phone: data.senderPhone,\n  contactName: data.senderName,\n  instanceName: data.instanceName,\n  messageId: data.messageId,\n  messageType: data.messageType\n};"
-      },
-      "typeVersion": 2
-    },
-    {
       "id": "download-audio",
       "name": "Download Audio",
       "type": "n8n-nodes-base.httpRequest",
@@ -743,7 +733,7 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "position": [1600, 560],
       "parameters": {
-        "sessionKey": "=sofia-evo-{{ $('Prepare Text for Agent').item.json.phone }}",
+        "sessionKey": "=sofia-evo-{{ $('Normalize Payload').item.json.senderPhone }}",
         "sessionIdType": "customKey",
         "contextWindowLength": 50
       },
