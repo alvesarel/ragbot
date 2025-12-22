@@ -1,6 +1,8 @@
 # Google Sheets Templates
 
-CSV templates for the Google Sheets required by Diana (Patient Check-in Agent).
+CSV templates for the Google Sheets used by the clinic agents:
+- **Diana**: Patient check-ins (Patients, CheckIns)
+- **Sofia**: Multi-role virtual secretary (AllPatients, Leads)
 
 ## Setup Instructions
 
@@ -82,3 +84,57 @@ Search for `your_google_sheet_id_here` and replace with your actual Sheet ID.
 ## Tirzepatide Doses
 
 Standard escalation: 2.5mg → 5mg → 7.5mg → 10mg → 12.5mg → 15mg
+
+---
+
+## Sofia Multi-Role Sheets
+
+Sofia uses a separate Google Sheet for sender identification and lead tracking.
+
+### Setup Sofia Sheet
+
+1. Create new Google Sheet named `Sofia Multi-Role`
+2. Import `AllPatients.csv` → Rename tab to `AllPatients`
+3. Import `Leads.csv` → Rename tab to `Leads`
+4. Share with n8n service account
+5. Copy Sheet ID for workflow configuration
+
+### AllPatients Sheet
+Master list of all clinic patients (used for sender identification).
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| PHONE | Phone with country code (no +) | 5511999998888 |
+| NAME | Patient full name | Maria Silva |
+| EMAIL | Email address | maria@email.com |
+| CPF | Brazilian ID | 123.456.789-00 |
+| DOB | Date of birth | 1985-03-15 |
+| REGISTRATION_DATE | When registered | 2024-12-01 |
+| TREATMENT_TYPE | Tirzepatide/Other | Tirzepatide |
+| STATUS | active/inactive | active |
+| NOTES | Free text notes | Patient from referral |
+
+### Leads Sheet
+All leads for remarketing and qualification tracking.
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| PHONE | Phone with country code (no +) | 5511966665555 |
+| NAME | Lead name | Paula Oliveira |
+| EMAIL | Email if collected | paula@email.com |
+| CEP | Postal code | 01310-100 |
+| DOB | Date of birth | 1992-04-20 |
+| CPF | CPF if collected | |
+| SOURCE | Lead source | Meta Ads, Instagram |
+| STAGE | Conversation stage | greeting/discovery/qualification/value_building/scheduling/confirmation |
+| STATUS | Lead status | active/awaiting_human/scheduled/completed/cold |
+| NOTES | AI-generated notes | Interested in consultation |
+| LAST_MESSAGE | Last message from lead | Quero agendar |
+| FIRST_CONTACT | First interaction timestamp | 2024-12-15 14:30 |
+| LAST_CONTACT | Most recent interaction | 2024-12-18 09:15 |
+
+### Phone Number Format
+
+**Important**: All phone numbers are stored WITHOUT the + prefix (e.g., `5511999998888`).
+- Evolution API sends numbers WITH + prefix
+- Workflow normalizes: strips + for lookups, adds + for sending

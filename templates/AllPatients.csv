@@ -1,0 +1,4 @@
+PHONE,NAME,EMAIL,CPF,DOB,REGISTRATION_DATE,TREATMENT_TYPE,STATUS,NOTES
+5511999998888,Maria Silva,maria@email.com,123.456.789-00,1985-03-15,2024-12-01,Tirzepatide,active,Patient from Tirzepatide program
+5511988887777,Joao Santos,joao@email.com,987.654.321-00,1990-07-22,2024-11-15,Tirzepatide,active,Transferred from another clinic
+5511977776666,Ana Costa,ana@email.com,456.789.123-00,1988-11-08,2024-12-10,Other,active,Initial consultation completed

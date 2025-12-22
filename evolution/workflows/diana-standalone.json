@@ -85,7 +85,7 @@
       "type": "n8n-nodes-base.code",
       "position": [820, 700],
       "parameters": {
-        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '');\n\n// Normalized phone without country code for sheet lookup\nconst phoneNormalized = phone.startsWith('55') ? phone.slice(2) : phone;\n\n// Determine message type\nlet messageType = 'unsupported';\nlet messageText = '';\n\nif (message.conversation) {\n  messageType = 'text';\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageType = 'text';\n  messageText = message.extendedTextMessage.text;\n} else if (message.audioMessage) {\n  messageType = 'audio';\n} else if (message.videoMessage) {\n  messageType = 'video';\n} else if (message.imageMessage) {\n  messageType = 'image';\n}\n\nreturn {\n  senderPhone: phone,\n  senderPhoneNormalized: phoneNormalized,\n  senderName: data.pushName || phone,\n  messageType: messageType,\n  messageText: messageText,\n  messageId: key.id,\n  timestamp: new Date((data.messageTimestamp || 0) * 1000).toISOString()\n};"
+        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number (strip + if present)\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '')\n  .replace(/^\\+/, '');\n\n// Normalized phone without country code for sheet lookup\nconst phoneNormalized = phone.startsWith('55') ? phone.slice(2) : phone;\n\n// Determine message type\nlet messageType = 'unsupported';\nlet messageText = '';\n\nif (message.conversation) {\n  messageType = 'text';\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageType = 'text';\n  messageText = message.extendedTextMessage.text;\n} else if (message.audioMessage) {\n  messageType = 'audio';\n} else if (message.videoMessage) {\n  messageType = 'video';\n} else if (message.imageMessage) {\n  messageType = 'image';\n}\n\nreturn {\n  senderPhone: phone,\n  senderPhoneNormalized: phoneNormalized,\n  senderName: data.pushName || phone,\n  messageType: messageType,\n  messageText: messageText,\n  messageId: key.id,\n  timestamp: new Date((data.messageTimestamp || 0) * 1000).toISOString()\n};"
       },
       "typeVersion": 2
     },
@@ -105,7 +105,7 @@
           "values": [
             {
               "lookupColumn": "PHONE",
-              "lookupValue": "={{ $json.senderPhoneNormalized }}"
+              "lookupValue": "={{ $json.senderPhone }}"
             }
           ]
         },

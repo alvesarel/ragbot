@@ -85,7 +85,7 @@
       "type": "n8n-nodes-base.code",
       "position": [820, 340],
       "parameters": {
-        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number from remoteJid\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '');\n\n// Determine message type and extract content\nlet messageType = 'unsupported';\nlet messageText = '';\nlet mediaData = null;\n\nif (message.conversation) {\n  messageType = 'text';\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageType = 'text';\n  messageText = message.extendedTextMessage.text;\n} else if (message.audioMessage) {\n  messageType = 'audio';\n  mediaData = message.audioMessage;\n} else if (message.videoMessage) {\n  messageType = 'video';\n  mediaData = message.videoMessage;\n} else if (message.imageMessage) {\n  messageType = 'image';\n  mediaData = message.imageMessage;\n} else if (message.documentMessage) {\n  messageType = 'document';\n  mediaData = message.documentMessage;\n} else if (message.stickerMessage) {\n  messageType = 'sticker';\n} else if (message.locationMessage) {\n  messageType = 'location';\n}\n\nreturn {\n  // Core message data\n  senderPhone: phone,\n  senderName: data.pushName || phone,\n  messageId: key.id,\n  messageType: messageType,\n  messageText: messageText,\n  timestamp: new Date((data.messageTimestamp || 0) * 1000).toISOString(),\n  \n  // For media messages\n  mediaData: mediaData,\n  originalMessage: data,\n  \n  // Instance info from webhook\n  instanceName: webhookData.instance || 'sofia-instance'\n};"
+        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number from remoteJid\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '')\n  .replace(/^\\+/, '');\n\n// Determine message type and extract content\nlet messageType = 'unsupported';\nlet messageText = '';\nlet mediaData = null;\n\nif (message.conversation) {\n  messageType = 'text';\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageType = 'text';\n  messageText = message.extendedTextMessage.text;\n} else if (message.audioMessage) {\n  messageType = 'audio';\n  mediaData = message.audioMessage;\n} else if (message.videoMessage) {\n  messageType = 'video';\n  mediaData = message.videoMessage;\n} else if (message.imageMessage) {\n  messageType = 'image';\n  mediaData = message.imageMessage;\n} else if (message.documentMessage) {\n  messageType = 'document';\n  mediaData = message.documentMessage;\n} else if (message.stickerMessage) {\n  messageType = 'sticker';\n} else if (message.locationMessage) {\n  messageType = 'location';\n}\n\nreturn {\n  // Core message data\n  senderPhone: phone,\n  senderName: data.pushName || phone,\n  messageId: key.id,\n  messageType: messageType,\n  messageText: messageText,\n  timestamp: new Date((data.messageTimestamp || 0) * 1000).toISOString(),\n  \n  // For media messages\n  mediaData: mediaData,\n  originalMessage: data,\n  \n  // Instance info from webhook\n  instanceName: webhookData.instance || 'sofia-instance'\n};"
       },
       "typeVersion": 2
     },
@@ -226,6 +226,315 @@
         "options": {}
       },
       "typeVersion": 3.2
+    },
+    {
+      "id": "lookup-patient",
+      "name": "Lookup Patient",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1240, 340],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SOFIA_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AllPatients",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "PHONE",
+              "lookupValue": "={{ $('Normalize Payload').item.json.senderPhone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "is-patient",
+      "name": "Is Patient?",
+      "type": "n8n-nodes-base.if",
+      "position": [1440, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-patient-name",
+              "leftValue": "={{ $json.NAME }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "lookup-lead",
+      "name": "Lookup Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1640, 420],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SOFIA_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "PHONE",
+              "lookupValue": "={{ $('Normalize Payload').item.json.senderPhone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "is-returning-lead",
+      "name": "Is Returning Lead?",
+      "type": "n8n-nodes-base.if",
+      "position": [1840, 420],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-lead-phone",
+              "leftValue": "={{ $json.PHONE }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-patient-context",
+      "name": "Prepare Patient Context",
+      "type": "n8n-nodes-base.code",
+      "position": [1640, 180],
+      "parameters": {
+        "jsCode": "// Prepare patient context for AI agent\nconst patient = $('Lookup Patient').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: patient.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'patient',\n  patientData: {\n    name: patient.NAME || '',\n    email: patient.EMAIL || '',\n    cpf: patient.CPF || '',\n    dob: patient.DOB || '',\n    treatmentType: patient.TREATMENT_TYPE || '',\n    status: patient.STATUS || '',\n    registrationDate: patient.REGISTRATION_DATE || '',\n    notes: patient.NOTES || ''\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "patient-ai-agent",
+      "name": "Patient AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1860, 180],
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "# Sofia - Secretaria Virtual (Modo Paciente)\n\nVoce e Sofia, secretaria virtual de uma clinica de emagrecimento. Voce esta atendendo um PACIENTE registrado quando o atendimento humano nao esta disponivel.\n\n## Contexto do Paciente\n- Nome: {{ $json.patientData.name }}\n- Tipo Tratamento: {{ $json.patientData.treatmentType }}\n- Status: {{ $json.patientData.status }}\n\n## Comportamento\n- Identifique-se como secretaria virtual\n- Acolha o paciente pelo nome\n- Escute a demanda com atencao\n- NAO tente resolver problemas medicos\n- NAO forneca orientacoes de tratamento\n- SEMPRE encaminhe para atendimento humano\n- SEM emojis\n- Mensagens curtas e acolhedoras\n\n## Ferramenta RAG\nUse query_knowledge_base APENAS para: horario de funcionamento, informacoes sobre a clinica, contatos.\nNAO use para questoes de tratamento.\n\n## Classificacao de Urgencia\n\n**URGENTE** - Emergencias, sintomas severos (dor intensa, vomito persistente, reacao alergica), problemas com medicacao, paciente em distress\n\n**NORMAL** - Duvidas de agendamento, reagendamento, renovacao, receitas, perguntas sobre tratamento\n\n**BAIXA** - Informacoes gerais, feedback, sugestoes\n\n## Formato de Resposta OBRIGATORIO\n\nResponda SEMPRE neste formato JSON:\n```json\n{\n  \"message\": \"Sua resposta ao paciente\",\n  \"urgency\": \"urgent|normal|low\",\n  \"request_type\": \"Categoria da solicitacao\",\n  \"summary\": \"Resumo da demanda em 1 frase\"\n}\n```\n\n## Primeira Mensagem\n\"Ola {{ $json.patientData.name }}! Sou a Sofia, secretaria virtual da clinica. Estou aqui para registrar sua solicitacao e encaminhar para nossa equipe. Como posso ajudar?\""
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "patient-model",
+      "name": "Claude Haiku (Patient)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1860, 400],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20241022",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.5
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "patient-memory",
+      "name": "Patient Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [2000, 400],
+      "parameters": {
+        "sessionKey": "=sofia-patient-{{ $('Normalize Payload').item.json.senderPhone }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "process-patient-response",
+      "name": "Process Patient Response",
+      "type": "n8n-nodes-base.code",
+      "position": [2100, 180],
+      "parameters": {
+        "jsCode": "// Process patient AI response\nconst agentOutput = $input.first().json.output || '';\nconst patientContext = $('Prepare Patient Context').first().json;\n\n// Try to parse JSON response\nlet urgency = 'normal';\nlet requestType = 'Solicitacao geral';\nlet summary = '';\nlet cleanMessage = agentOutput;\n\ntry {\n  // Extract JSON from response\n  const jsonMatch = agentOutput.match(/```json\\n?([\\s\\S]*?)\\n?```/) || agentOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const jsonStr = jsonMatch[1] || jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    urgency = parsed.urgency || 'normal';\n    requestType = parsed.request_type || 'Solicitacao geral';\n    summary = parsed.summary || '';\n    cleanMessage = parsed.message || agentOutput;\n  }\n} catch (e) {\n  // If parsing fails, use defaults\n  cleanMessage = agentOutput.replace(/```json[\\s\\S]*?```/g, '').trim();\n}\n\n// Map urgency to Portuguese\nconst urgencyMap = {\n  'urgent': 'URGENTE',\n  'normal': 'NORMAL',\n  'low': 'BAIXA'\n};\n\nreturn {\n  responseMessage: cleanMessage,\n  patientPhone: patientContext.phone,\n  patientName: patientContext.patientData.name,\n  urgency: urgencyMap[urgency] || 'NORMAL',\n  requestType: requestType,\n  summary: summary || patientContext.text,\n  originalMessage: patientContext.text,\n  instanceName: patientContext.instanceName,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "reply-patient",
+      "name": "Reply To Patient",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2320, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.patientPhone }}\",\n  \"text\": {{ JSON.stringify($json.responseMessage) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "notify-human-patient",
+      "name": "Notify Human (Patient)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2540, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*ATENDIMENTO PACIENTE*\\n\\n*Urgencia:* {{ $json.urgency }}\\n*Paciente:* {{ $json.patientName }}\\n*Telefone:* {{ $json.patientPhone }}\\n*Tipo:* {{ $json.requestType }}\\n*Resumo:* {{ $json.summary }}\\n*Mensagem original:* \\\"{{ $json.originalMessage }}\\\"\\n*Hora:* {{ $json.timestamp }}\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "create-lead-record",
+      "name": "Create Lead Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2040, 540],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SOFIA_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PHONE": "={{ $('Normalize Payload').item.json.senderPhone }}",
+            "NAME": "",
+            "EMAIL": "",
+            "CEP": "",
+            "DOB": "",
+            "CPF": "",
+            "SOURCE": "WhatsApp",
+            "STAGE": "greeting",
+            "STATUS": "active",
+            "NOTES": "",
+            "LAST_MESSAGE": "={{ $('Normalize Payload').item.json.messageText }}",
+            "FIRST_CONTACT": "={{ new Date().toISOString() }}",
+            "LAST_CONTACT": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "prepare-returning-lead-context",
+      "name": "Prepare Returning Lead Context",
+      "type": "n8n-nodes-base.code",
+      "position": [2040, 340],
+      "parameters": {
+        "jsCode": "// Prepare returning lead context with previous data\nconst lead = $('Lookup Lead').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: lead.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'returning_lead',\n  leadData: {\n    name: lead.NAME || '',\n    email: lead.EMAIL || '',\n    cep: lead.CEP || '',\n    dob: lead.DOB || '',\n    cpf: lead.CPF || '',\n    source: lead.SOURCE || '',\n    stage: lead.STAGE || 'greeting',\n    status: lead.STATUS || 'active',\n    notes: lead.NOTES || '',\n    firstContact: lead.FIRST_CONTACT || '',\n    lastContact: lead.LAST_CONTACT || ''\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-new-lead-context",
+      "name": "Prepare New Lead Context",
+      "type": "n8n-nodes-base.code",
+      "position": [2240, 540],
+      "parameters": {
+        "jsCode": "// Prepare new lead context\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'new_lead',\n  leadData: {\n    name: '',\n    email: '',\n    cep: '',\n    dob: '',\n    cpf: '',\n    source: 'WhatsApp',\n    stage: 'greeting',\n    status: 'active',\n    notes: '',\n    firstContact: new Date().toISOString(),\n    lastContact: new Date().toISOString()\n  }\n};"
+      },
+      "typeVersion": 2
     },
     {
       "id": "reply-unsupported",
@@ -398,7 +707,7 @@
       "parameters": {
         "text": "={{ $json.text }}",
         "options": {
-          "systemMessage": "# Sofia - Assistente Virtual\n\nVoce e Sofia, assistente virtual de uma clinica de emagrecimento. Voce atende leads de Meta Ads quando o atendimento humano nao esta disponivel.\n\n## Contexto\n- Telefone: {{ $json.phone }}\n- Nome: {{ $json.contactName }}\n\n## Comportamento\n- Sempre se apresente como assistente virtual\n- Informe que o usuario pode solicitar atendimento humano a qualquer momento\n- Profissional, acolhedora, concisa\n- SEM emojis\n- Mensagens curtas (max 2 paragrafos)\n- Nunca seja insistente\n\n## Ferramenta RAG - IMPORTANTE\n**SEMPRE use query_knowledge_base para:**\n- Protocolos e tratamentos\n- Informacoes sobre a clinica\n- Precos e valores\n- Metodologia\n- Qualquer duvida tecnica ou institucional\n\nNunca invente informacoes.\n\n## Precos\n- Consulta (R$700): Pode mencionar apos gerar valor\n- Tratamento: Se perguntado, diga \"A partir de R$3.000 para protocolo de 1 mes\"\n- Para mais detalhes: \"O investimento varia conforme duracao e protocolo. Na consulta o medico avalia seu caso.\"\n\n## Dados a Coletar\nColete naturalmente: Nome, CPF, Email, CEP, Data nascimento, Como nos conheceu.\nIdade < 16: recuse educadamente.\n\n## Primeira Mensagem\n\"Ola! Sou a Sofia, assistente virtual da clinica. Estou aqui para ajudar com informacoes sobre nossos tratamentos e agendar sua consulta. Se preferir, pode solicitar atendimento humano a qualquer momento. Como posso ajudar?\"\n\n## Agendamento\nQuando interessado em agendar, peca:\n\"Para agendar, preciso de: Nome completo, CPF, Data de nascimento, Email, Endereco com CEP. Pode enviar como preferir.\"\n\nApos coletar (mesmo parcialmente apos 2 tentativas):\n\"Perfeito! Vou transferir para nossa equipe confirmar o horario.\n\n[DADOS_LEAD]\nNOME_COMPLETO: [dado ou 'Nao informado']\nTELEFONE: {{ $json.phone }}\nCPF: [dado ou 'Nao informado']\nDATA_NASCIMENTO: [dado ou 'Nao informado']\nEMAIL: [dado ou 'Nao informado']\nENDERECO: [dado ou 'Nao informado']\n[/DADOS_LEAD]\n[AGENDAR_CONSULTA]\"\n\n## Escalacao Humana [TRANSFERIR_HUMANO]\nEscale IMEDIATAMENTE quando:\n- Usuario solicita atendimento humano (qualquer variacao)\n- Gravidez/amamentacao\n- Condicoes serias (diabetes, cardiaco)\n- Usuario frustrado\n\n## Objecoes\n\"E caro\" -> \"Compreendo. O diferencial esta no acompanhamento continuo e retornos inclusos.\"\n\"Ja tentei de tudo\" -> \"Entendo. Aqui usamos medicina do emagrecimento com medicamentos de ultima geracao. Nao e dieta, e ciencia.\"\n\"Funciona?\" -> \"Usamos protocolos medicos com medicamentos aprovados pela ANVISA. Cada caso e unico.\""
+          "systemMessage": "# Sofia - Assistente Virtual\n\nVoce e Sofia, assistente virtual de uma clinica de emagrecimento. Voce atende leads quando o atendimento humano nao esta disponivel.\n\n## Contexto do Lead\n- Telefone: {{ $json.phone }}\n- Nome: {{ $json.contactName }}\n- Tipo: {{ $json.senderType }}\n- Estagio atual: {{ $json.leadData.stage }}\n- Dados ja coletados:\n  - Nome: {{ $json.leadData.name || 'Nao informado' }}\n  - Email: {{ $json.leadData.email || 'Nao informado' }}\n  - CEP: {{ $json.leadData.cep || 'Nao informado' }}\n  - Data Nasc: {{ $json.leadData.dob || 'Nao informado' }}\n  - CPF: {{ $json.leadData.cpf || 'Nao informado' }}\n  - Origem: {{ $json.leadData.source || 'Nao informado' }}\n\n## IMPORTANTE: Contexto\n- Se DADOS JA COLETADOS, NAO repita perguntas para esses dados\n- Se lead retornando, use o nome e continue de onde parou\n- Se novo lead, inicie do zero\n\n## Comportamento\n- Sempre se apresente como assistente virtual\n- Informe que pode solicitar atendimento humano a qualquer momento\n- Profissional, acolhedora, concisa\n- SEM emojis\n- Mensagens curtas (max 2 paragrafos)\n- Nunca seja insistente\n\n## Ferramenta RAG - IMPORTANTE\n**SEMPRE use query_knowledge_base para:**\n- Protocolos e tratamentos\n- Informacoes sobre a clinica\n- Precos e valores\n- Metodologia\n\nNunca invente informacoes.\n\n## Precos\n- Consulta (R$700): Mencione apos gerar valor\n- Tratamento: \"A partir de R$3.000 para protocolo de 1 mes\"\n\n## Dados a Coletar (se ainda nao coletados)\nNome, CPF, Email, CEP, Data nascimento, Como nos conheceu.\nIdade < 16: recuse educadamente.\n\n## Primeira Mensagem (novo lead)\n\"Ola! Sou a Sofia, assistente virtual da clinica. Estou aqui para ajudar com informacoes sobre nossos tratamentos e agendar sua consulta. Se preferir, pode solicitar atendimento humano a qualquer momento. Como posso ajudar?\"\n\n## Primeira Mensagem (lead retornando)\n\"Ola [NOME]! Que bom te ver novamente. Sou a Sofia, assistente virtual. Como posso ajudar hoje?\"\n\n## Agendamento\nQuando interessado em agendar, peca APENAS dados faltantes.\n\nApos coletar (mesmo parcialmente apos 2 tentativas):\n\"Perfeito! Vou transferir para nossa equipe confirmar o horario.\n\n[DADOS_LEAD]\nNOME_COMPLETO: [dado ou 'Nao informado']\nTELEFONE: {{ $json.phone }}\nCPF: [dado ou 'Nao informado']\nDATA_NASCIMENTO: [dado ou 'Nao informado']\nEMAIL: [dado ou 'Nao informado']\nENDERECO: [dado ou 'Nao informado']\nORIGEM: [dado ou 'Nao informado']\nESTAGIO: [estagio atual]\n[/DADOS_LEAD]\n[AGENDAR_CONSULTA]\"\n\n## Escalacao Humana [TRANSFERIR_HUMANO]\nEscale IMEDIATAMENTE quando:\n- Usuario solicita atendimento humano\n- Gravidez/amamentacao\n- Condicoes serias (diabetes, cardiaco)\n- Usuario frustrado\n\n## Objecoes\n\"E caro\" -> \"Compreendo. O diferencial esta no acompanhamento continuo e retornos inclusos.\"\n\"Ja tentei de tudo\" -> \"Aqui usamos medicina do emagrecimento com medicamentos de ultima geracao. Nao e dieta, e ciencia.\"\n\"Funciona?\" -> \"Usamos protocolos medicos com medicamentos aprovados pela ANVISA. Cada caso e unico.\""
         },
         "promptType": "define"
       },
@@ -513,7 +822,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1700, 340],
       "parameters": {
-        "jsCode": "// Process Sofia's response and detect handoff triggers\nconst agentOutput = $input.first().json.output || '';\nconst preparedData = $('Prepare Text for Agent').first().json;\n\n// Check for scheduling handoff tag\nconst needsScheduling = agentOutput.includes('[AGENDAR_CONSULTA]');\nconst needsHumanTransfer = agentOutput.includes('[TRANSFERIR_HUMANO]');\n\n// Extract lead data block if present\nlet leadData = {\n  nomeCompleto: '',\n  telefone: '',\n  cpf: '',\n  dataNascimento: '',\n  email: '',\n  endereco: ''\n};\n\nconst dataBlockMatch = agentOutput.match(/\\[DADOS_LEAD\\]([\\s\\S]*?)\\[\\/DADOS_LEAD\\]/);\nif (dataBlockMatch) {\n  const dataBlock = dataBlockMatch[1];\n  \n  const nomeMatch = dataBlock.match(/NOME_COMPLETO:\\s*(.+?)(?:\\n|$)/);\n  const telefoneMatch = dataBlock.match(/TELEFONE:\\s*(.+?)(?:\\n|$)/);\n  const cpfMatch = dataBlock.match(/CPF:\\s*(.+?)(?:\\n|$)/);\n  const dataMatch = dataBlock.match(/DATA_NASCIMENTO:\\s*(.+?)(?:\\n|$)/);\n  const emailMatch = dataBlock.match(/EMAIL:\\s*(.+?)(?:\\n|$)/);\n  const enderecoMatch = dataBlock.match(/ENDERECO:\\s*(.+?)(?:\\n|$)/);\n  \n  leadData.nomeCompleto = nomeMatch ? nomeMatch[1].trim() : '';\n  leadData.telefone = telefoneMatch ? telefoneMatch[1].trim() : '';\n  leadData.cpf = cpfMatch ? cpfMatch[1].trim() : '';\n  leadData.dataNascimento = dataMatch ? dataMatch[1].trim() : '';\n  leadData.email = emailMatch ? emailMatch[1].trim() : '';\n  leadData.endereco = enderecoMatch ? enderecoMatch[1].trim() : '';\n}\n\n// Clean message for user\nlet cleanMessage = agentOutput\n  .replace(/\\[DADOS_LEAD\\][\\s\\S]*?\\[\\/DADOS_LEAD\\]/g, '')\n  .replace('[AGENDAR_CONSULTA]', '')\n  .replace('[TRANSFERIR_HUMANO]', '')\n  .trim();\n\nconst finalLeadData = {\n  nomeCompleto: leadData.nomeCompleto || preparedData.contactName,\n  telefone: leadData.telefone || preparedData.phone,\n  cpf: leadData.cpf || 'Nao informado',\n  dataNascimento: leadData.dataNascimento || 'Nao informado',\n  email: leadData.email || 'Nao informado',\n  endereco: leadData.endereco || 'Nao informado'\n};\n\nreturn {\n  responseMessage: cleanMessage,\n  leadData: finalLeadData,\n  leadPhone: preparedData.phone,\n  leadName: finalLeadData.nomeCompleto,\n  lastMessage: preparedData.text,\n  needsScheduling: needsScheduling,\n  needsHumanTransfer: needsHumanTransfer,\n  needsHandoff: needsScheduling || needsHumanTransfer,\n  handoffType: needsScheduling ? 'AGENDAMENTO' : (needsHumanTransfer ? 'TRANSFERENCIA' : null),\n  instanceName: preparedData.instanceName\n};"
+        "jsCode": "// Process Sofia's response and detect handoff triggers\nconst agentOutput = $input.first().json.output || '';\n\n// Get context from either returning or new lead context node\nlet preparedData;\ntry {\n  preparedData = $('Prepare Returning Lead Context').first().json;\n} catch (e) {\n  try {\n    preparedData = $('Prepare New Lead Context').first().json;\n  } catch (e2) {\n    // Fallback to normalize payload\n    const normalized = $('Normalize Payload').first().json;\n    preparedData = {\n      text: normalized.messageText,\n      phone: normalized.senderPhone,\n      contactName: normalized.senderName,\n      instanceName: normalized.instanceName,\n      senderType: 'unknown',\n      leadData: { stage: 'greeting' }\n    };\n  }\n}\n\n// Check for scheduling handoff tag\nconst needsScheduling = agentOutput.includes('[AGENDAR_CONSULTA]');\nconst needsHumanTransfer = agentOutput.includes('[TRANSFERIR_HUMANO]');\n\n// Extract lead data block if present\nlet extractedData = {};\nconst dataBlockMatch = agentOutput.match(/\\[DADOS_LEAD\\]([\\s\\S]*?)\\[\\/DADOS_LEAD\\]/);\nif (dataBlockMatch) {\n  const dataBlock = dataBlockMatch[1];\n  const matches = {\n    nome: dataBlock.match(/NOME_COMPLETO:\\s*(.+?)(?:\\n|$)/),\n    cpf: dataBlock.match(/CPF:\\s*(.+?)(?:\\n|$)/),\n    dob: dataBlock.match(/DATA_NASCIMENTO:\\s*(.+?)(?:\\n|$)/),\n    email: dataBlock.match(/EMAIL:\\s*(.+?)(?:\\n|$)/),\n    endereco: dataBlock.match(/ENDERECO:\\s*(.+?)(?:\\n|$)/),\n    origem: dataBlock.match(/ORIGEM:\\s*(.+?)(?:\\n|$)/),\n    estagio: dataBlock.match(/ESTAGIO:\\s*(.+?)(?:\\n|$)/)\n  };\n  for (const [key, match] of Object.entries(matches)) {\n    if (match && match[1].trim() !== 'Nao informado') {\n      extractedData[key] = match[1].trim();\n    }\n  }\n}\n\n// Determine new stage\nlet newStage = preparedData.leadData?.stage || 'greeting';\nif (extractedData.estagio) newStage = extractedData.estagio;\nelse if (needsScheduling) newStage = 'scheduling';\nelse if (needsHumanTransfer) newStage = 'awaiting_human';\n\n// Clean message for user\nlet cleanMessage = agentOutput\n  .replace(/\\[DADOS_LEAD\\][\\s\\S]*?\\[\\/DADOS_LEAD\\]/g, '')\n  .replace('[AGENDAR_CONSULTA]', '')\n  .replace('[TRANSFERIR_HUMANO]', '')\n  .trim();\n\n// Merge extracted data with previous data\nconst previousData = preparedData.leadData || {};\nconst finalLeadData = {\n  name: extractedData.nome || previousData.name || preparedData.contactName,\n  email: extractedData.email || previousData.email || '',\n  cep: extractedData.endereco || previousData.cep || '',\n  dob: extractedData.dob || previousData.dob || '',\n  cpf: extractedData.cpf || previousData.cpf || '',\n  source: extractedData.origem || previousData.source || 'WhatsApp',\n  stage: newStage,\n  status: needsHumanTransfer ? 'awaiting_human' : (needsScheduling ? 'scheduled' : 'active')\n};\n\nreturn {\n  responseMessage: cleanMessage,\n  leadData: finalLeadData,\n  leadPhone: preparedData.phone,\n  leadName: finalLeadData.name,\n  lastMessage: preparedData.text,\n  senderType: preparedData.senderType,\n  needsScheduling: needsScheduling,\n  needsHumanTransfer: needsHumanTransfer,\n  needsHandoff: needsScheduling || needsHumanTransfer,\n  handoffType: needsScheduling ? 'AGENDAMENTO' : (needsHumanTransfer ? 'TRANSFERENCIA' : null),\n  instanceName: preparedData.instanceName\n};"
       },
       "typeVersion": 2
     },
@@ -581,7 +890,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*NOVO LEAD PRONTO PARA {{ $('Process Response').item.json.handoffType }}*\\n\\n*Nome:* {{ $('Process Response').item.json.leadData.nomeCompleto }}\\n*Telefone:* {{ $('Process Response').item.json.leadData.telefone }}\\n*CPF:* {{ $('Process Response').item.json.leadData.cpf }}\\n*Nascimento:* {{ $('Process Response').item.json.leadData.dataNascimento }}\\n*Email:* {{ $('Process Response').item.json.leadData.email }}\\n*Endereco:* {{ $('Process Response').item.json.leadData.endereco }}\\n\\n*Ultima msg:* {{ $('Process Response').item.json.lastMessage }}\"\n}",
+        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*NOVO LEAD PRONTO PARA {{ $('Process Response').item.json.handoffType }}*\\n\\n*Nome:* {{ $('Process Response').item.json.leadData.name }}\\n*Telefone:* {{ $('Process Response').item.json.leadPhone }}\\n*CPF:* {{ $('Process Response').item.json.leadData.cpf || 'Nao informado' }}\\n*Nascimento:* {{ $('Process Response').item.json.leadData.dob || 'Nao informado' }}\\n*Email:* {{ $('Process Response').item.json.leadData.email || 'Nao informado' }}\\n*CEP:* {{ $('Process Response').item.json.leadData.cep || 'Nao informado' }}\\n*Origem:* {{ $('Process Response').item.json.leadData.source }}\\n*Estagio:* {{ $('Process Response').item.json.leadData.stage }}\\n\\n*Ultima msg:* {{ $('Process Response').item.json.lastMessage }}\"\n}",
         "options": {}
       },
       "credentials": {
@@ -593,6 +902,49 @@
       "typeVersion": 4.2
     },
     {
+      "id": "update-lead-record",
+      "name": "Update Lead Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2360, 420],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SOFIA_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "NAME": "={{ $('Process Response').item.json.leadData.name }}",
+            "EMAIL": "={{ $('Process Response').item.json.leadData.email }}",
+            "CEP": "={{ $('Process Response').item.json.leadData.cep }}",
+            "DOB": "={{ $('Process Response').item.json.leadData.dob }}",
+            "CPF": "={{ $('Process Response').item.json.leadData.cpf }}",
+            "SOURCE": "={{ $('Process Response').item.json.leadData.source }}",
+            "STAGE": "={{ $('Process Response').item.json.leadData.stage }}",
+            "STATUS": "={{ $('Process Response').item.json.leadData.status }}",
+            "LAST_MESSAGE": "={{ $('Process Response').item.json.lastMessage }}",
+            "LAST_CONTACT": "={{ new Date().toISOString() }}"
+          }
+        },
+        "matchingColumns": ["PHONE"],
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
       "id": "sticky-note-main",
       "name": "Main Info",
       "type": "n8n-nodes-base.stickyNote",
@@ -601,299 +953,136 @@
         "color": 7,
         "width": 580,
         "height": 260,
-        "content": "## Sofia Evolution - Standalone Lead Qualification\n\nThis is an **independent** workflow with its own webhook.\nNo router needed - each agent runs on its own number.\n\n### Configuration (Hardcoded)\n- **Evolution API:** https://evolution-api-production-9395.up.railway.app\n- **Instance:** whatsapp-teste\n- **Support Phone:** 5511999724691\n\n### Webhook URL\nConfigure in Evolution API:\n`https://your-n8n-url/webhook/sofia-evolution`\n\n### Required Credentials\n- `evolution-api-creds` (Header Auth with apikey)\n- `anthropic-creds` (Claude Haiku)\n- `openai-creds` (Whisper + embeddings)\n- `qdrant-creds` (Vector store)"
+        "content": "## Sofia Evolution - Multi-Role Virtual Secretary\n\nThis workflow handles 3 sender types:\\n- **Patient**: Virtual secretary mode, urgency classification, always handoff\\n- **Returning Lead**: Continue qualification with previous data\\n- **New Lead**: Create record, start qualification\\n\\n### Flow: Message → Lookup Patient → Is Patient?\\n→ YES: Patient Flow (secretary mode)\\n→ NO: Lookup Lead → Is Returning Lead?\\n  → YES: Load context → Lead AI Agent\\n  → NO: Create Record → Lead AI Agent\\n\\n### Configuration (Hardcoded)\\n- **Evolution API:** https://evolution-api-production-9395.up.railway.app\\n- **Instance:** whatsapp-teste\\n- **Support Phone:** 5511999724691\\n- **Google Sheet ID:** YOUR_SOFIA_SHEET_ID (AllPatients + Leads tabs)\\n\\n### Required Credentials\\n- `evolution-api-creds` (Header Auth with apikey)\\n- `anthropic-creds` (Claude Haiku)\\n- `openai-creds` (Whisper + embeddings)\\n- `qdrant-creds` (Vector store)\\n- `google-sheets-creds` (Google Sheets OAuth2)"
       },
       "typeVersion": 1
     }
   ],
   "connections": {
     "Evolution Webhook": {
-      "main": [
-        [
-          {
-            "node": "Is Message Event?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Is Message Event?", "type": "main", "index": 0}]]
     },
     "Is Message Event?": {
-      "main": [
-        [
-          {
-            "node": "Is Incoming Message?",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
+      "main": [[{"node": "Is Incoming Message?", "type": "main", "index": 0}], []]
     },
     "Is Incoming Message?": {
-      "main": [
-        [
-          {
-            "node": "Normalize Payload",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
+      "main": [[{"node": "Normalize Payload", "type": "main", "index": 0}], []]
     },
     "Normalize Payload": {
-      "main": [
-        [
-          {
-            "node": "Handle Message Types",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Handle Message Types", "type": "main", "index": 0}]]
     },
     "Handle Message Types": {
       "main": [
-        [
-          {
-            "node": "Prepare Text for Agent",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Download Audio",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Download Video",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Reply Unsupported Type",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Text for Agent": {
-      "main": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{"node": "Lookup Patient", "type": "main", "index": 0}],
+        [{"node": "Download Audio", "type": "main", "index": 0}],
+        [{"node": "Download Video", "type": "main", "index": 0}],
+        [{"node": "Reply Unsupported Type", "type": "main", "index": 0}]
       ]
     },
     "Download Audio": {
-      "main": [
-        [
-          {
-            "node": "Convert Audio to Binary",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Convert Audio to Binary", "type": "main", "index": 0}]]
     },
     "Download Video": {
-      "main": [
-        [
-          {
-            "node": "Convert Video to Binary",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Convert Video to Binary", "type": "main", "index": 0}]]
     },
     "Convert Audio to Binary": {
-      "main": [
-        [
-          {
-            "node": "Transcribe Audio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Transcribe Audio", "type": "main", "index": 0}]]
     },
     "Convert Video to Binary": {
-      "main": [
-        [
-          {
-            "node": "Transcribe Video",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Transcribe Video", "type": "main", "index": 0}]]
     },
     "Transcribe Audio": {
-      "main": [
-        [
-          {
-            "node": "Format Audio Transcription",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Format Audio Transcription", "type": "main", "index": 0}]]
     },
     "Transcribe Video": {
-      "main": [
-        [
-          {
-            "node": "Format Video Transcription",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Format Video Transcription", "type": "main", "index": 0}]]
     },
     "Format Audio Transcription": {
-      "main": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Lookup Patient", "type": "main", "index": 0}]]
     },
     "Format Video Transcription": {
+      "main": [[{"node": "Lookup Patient", "type": "main", "index": 0}]]
+    },
+    "Lookup Patient": {
+      "main": [[{"node": "Is Patient?", "type": "main", "index": 0}]]
+    },
+    "Is Patient?": {
       "main": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{"node": "Prepare Patient Context", "type": "main", "index": 0}],
+        [{"node": "Lookup Lead", "type": "main", "index": 0}]
       ]
+    },
+    "Prepare Patient Context": {
+      "main": [[{"node": "Patient AI Agent", "type": "main", "index": 0}]]
+    },
+    "Patient AI Agent": {
+      "main": [[{"node": "Process Patient Response", "type": "main", "index": 0}]]
+    },
+    "Process Patient Response": {
+      "main": [[{"node": "Reply To Patient", "type": "main", "index": 0}]]
+    },
+    "Reply To Patient": {
+      "main": [[{"node": "Notify Human (Patient)", "type": "main", "index": 0}]]
+    },
+    "Lookup Lead": {
+      "main": [[{"node": "Is Returning Lead?", "type": "main", "index": 0}]]
+    },
+    "Is Returning Lead?": {
+      "main": [
+        [{"node": "Prepare Returning Lead Context", "type": "main", "index": 0}],
+        [{"node": "Create Lead Record", "type": "main", "index": 0}]
+      ]
+    },
+    "Prepare Returning Lead Context": {
+      "main": [[{"node": "Sofia AI Agent", "type": "main", "index": 0}]]
+    },
+    "Create Lead Record": {
+      "main": [[{"node": "Prepare New Lead Context", "type": "main", "index": 0}]]
+    },
+    "Prepare New Lead Context": {
+      "main": [[{"node": "Sofia AI Agent", "type": "main", "index": 0}]]
     },
     "Sofia AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Process Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Process Response", "type": "main", "index": 0}]]
     },
     "Process Response": {
-      "main": [
-        [
-          {
-            "node": "Reply To User",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Reply To User", "type": "main", "index": 0}]]
     },
     "Reply To User": {
-      "main": [
-        [
-          {
-            "node": "Needs Handoff?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Update Lead Record", "type": "main", "index": 0}]]
+    },
+    "Update Lead Record": {
+      "main": [[{"node": "Needs Handoff?", "type": "main", "index": 0}]]
     },
     "Needs Handoff?": {
-      "main": [
-        [
-          {
-            "node": "Notify Human Support",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
+      "main": [[{"node": "Notify Human Support", "type": "main", "index": 0}], []]
     },
     "Claude Haiku 4.5": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_languageModel": [[{"node": "Sofia AI Agent", "type": "ai_languageModel", "index": 0}]]
     },
     "Window Buffer Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_memory": [[{"node": "Sofia AI Agent", "type": "ai_memory", "index": 0}]]
     },
     "Knowledge Base RAG Tool": {
       "ai_tool": [
-        [
-          {
-            "node": "Sofia AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
+        [{"node": "Sofia AI Agent", "type": "ai_tool", "index": 0}],
+        [{"node": "Patient AI Agent", "type": "ai_tool", "index": 0}]
       ]
     },
     "Qdrant Vector Store": {
-      "ai_vectorStore": [
-        [
-          {
-            "node": "Knowledge Base RAG Tool",
-            "type": "ai_vectorStore",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_vectorStore": [[{"node": "Knowledge Base RAG Tool", "type": "ai_vectorStore", "index": 0}]]
     },
     "OpenAI Embeddings": {
-      "ai_embedding": [
-        [
-          {
-            "node": "Qdrant Vector Store",
-            "type": "ai_embedding",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_embedding": [[{"node": "Qdrant Vector Store", "type": "ai_embedding", "index": 0}]]
     },
     "OpenAI Chat Model (RAG)": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Knowledge Base RAG Tool",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_languageModel": [[{"node": "Knowledge Base RAG Tool", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Claude Haiku (Patient)": {
+      "ai_languageModel": [[{"node": "Patient AI Agent", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Patient Memory": {
+      "ai_memory": [[{"node": "Patient AI Agent", "type": "ai_memory", "index": 0}]]
     }
   },
   "settings": {
