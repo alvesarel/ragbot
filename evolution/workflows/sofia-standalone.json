@@ -232,6 +232,8 @@
       "name": "Lookup Patient",
       "type": "n8n-nodes-base.googleSheets",
       "position": [1240, 340],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
       "parameters": {
         "operation": "read",
         "documentId": {
@@ -296,6 +298,8 @@
       "name": "Lookup Lead",
       "type": "n8n-nodes-base.googleSheets",
       "position": [1640, 420],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
       "parameters": {
         "operation": "read",
         "documentId": {
