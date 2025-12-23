@@ -476,10 +476,20 @@
       "typeVersion": 4.2
     },
     {
+      "id": "prepare-new-lead-data",
+      "name": "Prepare New Lead Data",
+      "type": "n8n-nodes-base.code",
+      "position": [2040, 540],
+      "parameters": {
+        "jsCode": "// Gather data from Normalize Payload for new lead creation\nconst normalizedData = $('Normalize Payload').first().json;\nconst now = new Date().toISOString();\n\nreturn {\n  PHONE: normalizedData.senderPhone || '',\n  NAME: '',\n  EMAIL: '',\n  CEP: '',\n  DOB: '',\n  CPF: '',\n  SOURCE: 'WhatsApp',\n  STAGE: 'greeting',\n  STATUS: 'active',\n  NOTES: '',\n  LAST_MESSAGE: normalizedData.messageText || '',\n  FIRST_CONTACT: now,\n  LAST_CONTACT: now\n};"
+      },
+      "typeVersion": 2
+    },
+    {
       "id": "create-lead-record",
       "name": "Create Lead Record",
       "type": "n8n-nodes-base.googleSheets",
-      "position": [2040, 540],
+      "position": [2240, 540],
       "parameters": {
         "operation": "append",
         "documentId": {
@@ -493,22 +503,8 @@
           "mode": "name"
         },
         "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "PHONE": "={{ $('Normalize Payload').first().json.senderPhone }}",
-            "NAME": "",
-            "EMAIL": "",
-            "CEP": "",
-            "DOB": "",
-            "CPF": "",
-            "SOURCE": "WhatsApp",
-            "STAGE": "greeting",
-            "STATUS": "active",
-            "NOTES": "",
-            "LAST_MESSAGE": "={{ $('Normalize Payload').first().json.messageText || '' }}",
-            "FIRST_CONTACT": "={{ new Date().toISOString() }}",
-            "LAST_CONTACT": "={{ new Date().toISOString() }}"
-          }
+          "mappingMode": "autoMapInputData",
+          "value": {}
         },
         "options": {}
       },
@@ -534,7 +530,7 @@
       "id": "prepare-new-lead-context",
       "name": "Prepare New Lead Context",
       "type": "n8n-nodes-base.code",
-      "position": [2240, 540],
+      "position": [2440, 540],
       "parameters": {
         "jsCode": "// Prepare new lead context\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'new_lead',\n  leadData: {\n    name: '',\n    email: '',\n    cep: '',\n    dob: '',\n    cpf: '',\n    source: 'WhatsApp',\n    stage: 'greeting',\n    status: 'active',\n    notes: '',\n    firstContact: new Date().toISOString(),\n    lastContact: new Date().toISOString()\n  }\n};"
       },
@@ -1024,8 +1020,11 @@
     "Is Returning Lead?": {
       "main": [
         [{"node": "Prepare Returning Lead Context", "type": "main", "index": 0}],
-        [{"node": "Create Lead Record", "type": "main", "index": 0}]
+        [{"node": "Prepare New Lead Data", "type": "main", "index": 0}]
       ]
+    },
+    "Prepare New Lead Data": {
+      "main": [[{"node": "Create Lead Record", "type": "main", "index": 0}]]
     },
     "Prepare Returning Lead Context": {
       "main": [[{"node": "Sofia AI Agent", "type": "main", "index": 0}]]
