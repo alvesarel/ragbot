@@ -85,23 +85,35 @@ Ao escalar, use `action: "request_handoff"` e `requires_handoff: true`.
 
 ## Formato de Resposta
 
+SEMPRE responda com JSON valido neste formato:
+
 ```json
 {
   "message": "Resposta ao usuario",
   "extracted_data": {
-    "name": null,
-    "email": null,
-    "cep": null,
-    "date_of_birth": null,
-    "referral_source": null
+    "name": "nome extraido ou null",
+    "email": "email extraido ou null",
+    "cep": "cep extraido ou null",
+    "date_of_birth": "data extraida ou null",
+    "referral_source": "origem extraida ou null"
   },
-  "new_stage": "discovery",
+  "new_stage": "greeting|discovery|qualification|value_building|scheduling|confirmation",
   "action": "await_response|schedule_appointment|request_handoff",
   "requires_handoff": false,
-  "handoff_reason": null,
-  "sentiment": "positive|neutral|negative"
+  "handoff_reason": null
 }
 ```
+
+**IMPORTANTE sobre extracted_data:**
+- Extraia dados de QUALQUER formato que o usuario fornecer
+- Exemplos:
+  - "meu nome e Joao" -> name: "Joao"
+  - "email joao@email.com" -> email: "joao@email.com"
+  - "nasci em 15/03/1990" -> date_of_birth: "1990-03-15"
+  - "moro no 01310-100" -> cep: "01310-100"
+  - "vi no instagram" -> referral_source: "Instagram"
+- Mantenha null para dados nao fornecidos
+- NUNCA perca dados ja coletados anteriormente
 
 ## Primeira Mensagem
 
