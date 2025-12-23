@@ -242,7 +242,7 @@
         "sheetName": {
           "__rl": true,
           "value": "AllPatients",
-          "mode": "list"
+          "mode": "name"
         },
         "filtersUI": {
           "values": [
@@ -306,7 +306,7 @@
         "sheetName": {
           "__rl": true,
           "value": "Leads",
-          "mode": "list"
+          "mode": "name"
         },
         "filtersUI": {
           "values": [
@@ -486,7 +486,7 @@
         "sheetName": {
           "__rl": true,
           "value": "Leads",
-          "mode": "list"
+          "mode": "name"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -906,7 +906,7 @@
         "sheetName": {
           "__rl": true,
           "value": "Leads",
-          "mode": "list"
+          "mode": "name"
         },
         "columns": {
           "mappingMode": "defineBelow",
