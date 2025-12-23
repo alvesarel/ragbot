@@ -869,10 +869,20 @@
       "typeVersion": 2
     },
     {
+      "id": "prepare-handoff-notification",
+      "name": "Prepare Handoff Notification",
+      "type": "n8n-nodes-base.code",
+      "position": [2360, 260],
+      "parameters": {
+        "jsCode": "// Prepare handoff notification message\nconst data = $('Process Response').first().json;\nconst leadData = data.leadData || {};\n\nconst message = `*NOVO LEAD PRONTO PARA ${data.handoffType || 'ATENDIMENTO'}*\n\n*Nome:* ${leadData.name || 'Nao informado'}\n*Telefone:* ${data.leadPhone || 'Nao informado'}\n*Email:* ${leadData.email || 'Nao informado'}\n*CEP:* ${leadData.cep || 'Nao informado'}\n*Nascimento:* ${leadData.dob || 'Nao informado'}\n*Origem:* ${leadData.source || 'WhatsApp'}\n*Estagio:* ${leadData.stage || 'greeting'}\n\n*Motivo:* ${data.handoffReason || 'Solicitacao de agendamento'}\n\n*Ultima msg:* ${data.lastMessage || ''}`;\n\nreturn {\n  number: '5511999724691',\n  text: message\n};"
+      },
+      "typeVersion": 2
+    },
+    {
       "id": "notify-human-support",
       "name": "Notify Human Support",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [2360, 260],
+      "position": [2560, 260],
       "parameters": {
         "method": "POST",
         "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
@@ -880,7 +890,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*NOVO LEAD PRONTO PARA {{ $('Process Response').first().json.handoffType }}*\\n\\n*Nome:* {{ $('Process Response').first().json.leadData.name }}\\n*Telefone:* {{ $('Process Response').first().json.leadPhone }}\\n*CPF:* {{ $('Process Response').first().json.leadData.cpf || 'Nao informado' }}\\n*Nascimento:* {{ $('Process Response').first().json.leadData.dob || 'Nao informado' }}\\n*Email:* {{ $('Process Response').first().json.leadData.email || 'Nao informado' }}\\n*CEP:* {{ $('Process Response').first().json.leadData.cep || 'Nao informado' }}\\n*Origem:* {{ $('Process Response').first().json.leadData.source }}\\n*Estagio:* {{ $('Process Response').first().json.leadData.stage }}\\n\\n*Motivo:* {{ $('Process Response').first().json.handoffReason || 'Agendamento' }}\\n\\n*Ultima msg:* {{ $('Process Response').first().json.lastMessage }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ number: $json.number, text: $json.text }) }}",
         "options": {}
       },
       "credentials": {
@@ -1050,7 +1060,10 @@
       "main": [[{"node": "Needs Handoff?", "type": "main", "index": 0}]]
     },
     "Needs Handoff?": {
-      "main": [[{"node": "Notify Human Support", "type": "main", "index": 0}], []]
+      "main": [[{"node": "Prepare Handoff Notification", "type": "main", "index": 0}], []]
+    },
+    "Prepare Handoff Notification": {
+      "main": [[{"node": "Notify Human Support", "type": "main", "index": 0}]]
     },
     "Claude Haiku 4.5": {
       "ai_languageModel": [[{"node": "Sofia AI Agent", "type": "ai_languageModel", "index": 0}]]
