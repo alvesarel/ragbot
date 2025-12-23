@@ -276,8 +276,8 @@
           },
           "conditions": [
             {
-              "id": "has-patient-name",
-              "leftValue": "={{ $json.NAME }}",
+              "id": "has-patient-phone",
+              "leftValue": "={{ $json.PHONE }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
