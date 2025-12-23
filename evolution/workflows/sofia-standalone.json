@@ -377,7 +377,7 @@
       "parameters": {
         "text": "={{ $json.text }}",
         "options": {
-          "systemMessage": "# Sofia - Secretaria Virtual (Modo Paciente)\n\nVoce e Sofia, secretaria virtual de uma clinica de emagrecimento. Voce esta atendendo um PACIENTE registrado quando o atendimento humano nao esta disponivel.\n\n## Contexto do Paciente\n- Nome: {{ $json.patientData.name }}\n- Tipo Tratamento: {{ $json.patientData.treatmentType }}\n- Status: {{ $json.patientData.status }}\n\n## Comportamento\n- Identifique-se como secretaria virtual\n- Acolha o paciente pelo nome\n- Escute a demanda com atencao\n- NAO tente resolver problemas medicos\n- NAO forneca orientacoes de tratamento\n- SEMPRE encaminhe para atendimento humano\n- SEM emojis\n- Mensagens curtas e acolhedoras\n\n## Ferramenta RAG\nUse query_knowledge_base APENAS para: horario de funcionamento, informacoes sobre a clinica, contatos.\nNAO use para questoes de tratamento.\n\n## Classificacao de Urgencia\n\n**URGENTE** - Emergencias, sintomas severos (dor intensa, vomito persistente, reacao alergica), problemas com medicacao, paciente em distress\n\n**NORMAL** - Duvidas de agendamento, reagendamento, renovacao, receitas, perguntas sobre tratamento\n\n**BAIXA** - Informacoes gerais, feedback, sugestoes\n\n## Formato de Resposta OBRIGATORIO\n\nResponda SEMPRE neste formato JSON:\n```json\n{\n  \"message\": \"Sua resposta ao paciente\",\n  \"urgency\": \"urgent|normal|low\",\n  \"request_type\": \"Categoria da solicitacao\",\n  \"summary\": \"Resumo da demanda em 1 frase\"\n}\n```\n\n## Primeira Mensagem\n\"Ola {{ $json.patientData.name }}! Sou a Sofia, secretaria virtual da clinica. Estou aqui para registrar sua solicitacao e encaminhar para nossa equipe. Como posso ajudar?\""
+          "systemMessage": "# Sofia - Secretaria Virtual (Modo Paciente)\n\nVoce e Sofia, secretaria virtual de uma clinica de emagrecimento. Voce esta atendendo um PACIENTE registrado.\n\n## Contexto do Paciente\n- Nome: {{ $json.patientData.name }}\n- Tipo Tratamento: {{ $json.patientData.treatmentType }}\n- Status: {{ $json.patientData.status }}\n\n## Comportamento\n- Identifique-se como secretaria virtual\n- Acolha o paciente pelo nome\n- SEM emojis\n- Mensagens curtas e acolhedoras\n\n## Ferramenta RAG - USE SEMPRE\n**SEMPRE use query_knowledge_base para responder perguntas sobre:**\n- Horario de funcionamento\n- Informacoes sobre a clinica e contatos\n- Protocolo do tratamento (doses, escalacao)\n- Efeitos colaterais comuns e como manejar\n- Orientacoes gerais do tratamento\n\nSe encontrar resposta na base, RESPONDA diretamente (requires_handoff: false).\nSe NAO encontrar, encaminhe para humano (requires_handoff: true).\n\n## Classificacao de Urgencia\n**URGENTE** - Emergencias, sintomas severos, reacoes alergicas, paciente em distress\n**NORMAL** - Agendamento, reagendamento, renovacao, perguntas sobre tratamento\n**BAIXA** - Informacoes gerais, feedback\n\n## Tipo de Encaminhamento (handoff_to)\n**doctor** - Receitas, ajuste de dose, questoes MEDICAS, sintomas preocupantes\n**secretary** - Agendamento, reagendamento, pagamentos, questoes ADMINISTRATIVAS\n\n## Formato de Resposta OBRIGATORIO\n```json\n{\n  \"message\": \"Sua resposta ao paciente\",\n  \"urgency\": \"urgent|normal|low\",\n  \"request_type\": \"Categoria da solicitacao\",\n  \"summary\": \"Resumo em 1 frase\",\n  \"requires_handoff\": true,\n  \"handoff_to\": \"doctor|secretary|null\",\n  \"handoff_reason\": \"Motivo do encaminhamento ou null\"\n}\n```\n\n**Regra de requires_handoff:**\n- false: Se voce conseguiu responder usando a base de conhecimento\n- true: Se precisa de acao humana (receita, agendamento, caso medico)\n\n## Primeira Mensagem\n\"Ola {{ $json.patientData.name }}! Sou a Sofia, secretaria virtual. Como posso ajudar?\""
         },
         "promptType": "define"
       },
@@ -425,7 +425,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2100, 180],
       "parameters": {
-        "jsCode": "// Process patient AI response\nconst agentOutput = $input.first().json.output || '';\nconst patientContext = $('Prepare Patient Context').first().json;\n\n// Try to parse JSON response\nlet urgency = 'normal';\nlet requestType = 'Solicitacao geral';\nlet summary = '';\nlet cleanMessage = agentOutput;\n\ntry {\n  // Extract JSON from response\n  const jsonMatch = agentOutput.match(/```json\\n?([\\s\\S]*?)\\n?```/) || agentOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const jsonStr = jsonMatch[1] || jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    urgency = parsed.urgency || 'normal';\n    requestType = parsed.request_type || 'Solicitacao geral';\n    summary = parsed.summary || '';\n    cleanMessage = parsed.message || agentOutput;\n  }\n} catch (e) {\n  // If parsing fails, use defaults\n  cleanMessage = agentOutput.replace(/```json[\\s\\S]*?```/g, '').trim();\n}\n\n// Map urgency to Portuguese\nconst urgencyMap = {\n  'urgent': 'URGENTE',\n  'normal': 'NORMAL',\n  'low': 'BAIXA'\n};\n\nreturn {\n  responseMessage: cleanMessage,\n  patientPhone: patientContext.phone,\n  patientName: patientContext.patientData.name,\n  urgency: urgencyMap[urgency] || 'NORMAL',\n  requestType: requestType,\n  summary: summary || patientContext.text,\n  originalMessage: patientContext.text,\n  instanceName: patientContext.instanceName,\n  timestamp: new Date().toISOString()\n};"
+        "jsCode": "// Process patient AI response\nconst agentOutput = $input.first().json.output || '';\nconst patientContext = $('Prepare Patient Context').first().json;\n\n// Try to parse JSON response\nlet urgency = 'normal';\nlet requestType = 'Solicitacao geral';\nlet summary = '';\nlet cleanMessage = agentOutput;\nlet requiresHandoff = true;\nlet handoffTo = 'secretary';\nlet handoffReason = null;\n\ntry {\n  const jsonMatch = agentOutput.match(/```json\\n?([\\s\\S]*?)\\n?```/) || agentOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const jsonStr = jsonMatch[1] || jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    urgency = parsed.urgency || 'normal';\n    requestType = parsed.request_type || 'Solicitacao geral';\n    summary = parsed.summary || '';\n    cleanMessage = parsed.message || agentOutput;\n    requiresHandoff = parsed.requires_handoff !== false;\n    handoffTo = parsed.handoff_to || 'secretary';\n    handoffReason = parsed.handoff_reason || null;\n  }\n} catch (e) {\n  cleanMessage = agentOutput.replace(/```json[\\s\\S]*?```/g, '').trim();\n}\n\nconst urgencyMap = { 'urgent': 'URGENTE', 'normal': 'NORMAL', 'low': 'BAIXA' };\n\n// Determine notification phone based on handoff type\nconst notifyPhone = handoffTo === 'doctor' ? '5511999724691' : '5511999986838';\nconst handoffLabel = handoffTo === 'doctor' ? 'MEDICO' : 'SECRETARIA';\n\nreturn {\n  responseMessage: cleanMessage,\n  patientPhone: patientContext.phone,\n  patientName: patientContext.patientData.name,\n  urgency: urgencyMap[urgency] || 'NORMAL',\n  requestType: requestType,\n  summary: summary || patientContext.text,\n  originalMessage: patientContext.text,\n  instanceName: patientContext.instanceName,\n  timestamp: new Date().toISOString(),\n  requiresHandoff: requiresHandoff,\n  handoffTo: handoffTo,\n  handoffLabel: handoffLabel,\n  handoffReason: handoffReason,\n  notifyPhone: notifyPhone\n};"
       },
       "typeVersion": 2
     },
@@ -453,18 +453,68 @@
       "typeVersion": 4.2
     },
     {
+      "id": "patient-needs-handoff",
+      "name": "Patient Needs Handoff?",
+      "type": "n8n-nodes-base.if",
+      "position": [2540, 180],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-patient-handoff",
+              "leftValue": "={{ $('Process Patient Response').first().json.requiresHandoff }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-patient-notification",
+      "name": "Prepare Patient Notification",
+      "type": "n8n-nodes-base.code",
+      "position": [2740, 100],
+      "parameters": {
+        "jsCode": "// Prepare patient handoff notification\nconst data = $('Process Patient Response').first().json;\n\nconst message = `*ATENDIMENTO PACIENTE - ${data.handoffLabel}*\n\n*Urgencia:* ${data.urgency}\n*Paciente:* ${data.patientName}\n*Telefone:* ${data.patientPhone}\n*Tipo:* ${data.requestType}\n*Resumo:* ${data.summary}\n${data.handoffReason ? '*Motivo:* ' + data.handoffReason + '\\n' : ''}\n*Mensagem:* \"${data.originalMessage}\"\n*Hora:* ${data.timestamp}`;\n\nreturn {\n  number: data.notifyPhone,\n  text: message\n};"
+      },
+      "typeVersion": 2
+    },
+    {
       "id": "notify-human-patient",
       "name": "Notify Human (Patient)",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [2540, 180],
+      "position": [2960, 100],
       "parameters": {
         "method": "POST",
         "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"5511999724691\",\n  \"text\": \"*ATENDIMENTO PACIENTE*\\n\\n*Urgencia:* {{ $json.urgency }}\\n*Paciente:* {{ $json.patientName }}\\n*Telefone:* {{ $json.patientPhone }}\\n*Tipo:* {{ $json.requestType }}\\n*Resumo:* {{ $json.summary }}\\n*Mensagem original:* \\\"{{ $json.originalMessage }}\\\"\\n*Hora:* {{ $json.timestamp }}\"\n}",
+        "specifyBody": "keypairs",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
         "options": {}
       },
       "credentials": {
@@ -1032,6 +1082,12 @@
       "main": [[{"node": "Reply To Patient", "type": "main", "index": 0}]]
     },
     "Reply To Patient": {
+      "main": [[{"node": "Patient Needs Handoff?", "type": "main", "index": 0}]]
+    },
+    "Patient Needs Handoff?": {
+      "main": [[{"node": "Prepare Patient Notification", "type": "main", "index": 0}], []]
+    },
+    "Prepare Patient Notification": {
       "main": [[{"node": "Notify Human (Patient)", "type": "main", "index": 0}]]
     },
     "Lookup Lead": {
