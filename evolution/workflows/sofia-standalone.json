@@ -250,7 +250,7 @@
           "values": [
             {
               "lookupColumn": "PHONE",
-              "lookupValue": "={{ $('Normalize Payload').item.json.senderPhone }}"
+              "lookupValue": "={{ $('Normalize Payload').first().json.senderPhone }}"
             }
           ]
         },
@@ -316,7 +316,7 @@
           "values": [
             {
               "lookupColumn": "PHONE",
-              "lookupValue": "={{ $('Normalize Payload').item.json.senderPhone }}"
+              "lookupValue": "={{ $('Normalize Payload').first().json.senderPhone }}"
             }
           ]
         },
@@ -413,7 +413,7 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "position": [2000, 400],
       "parameters": {
-        "sessionKey": "=sofia-patient-{{ $('Normalize Payload').item.json.senderPhone }}",
+        "sessionKey": "=sofia-patient-{{ $('Normalize Payload').first().json.senderPhone }}",
         "sessionIdType": "customKey",
         "contextWindowLength": 10
       },
@@ -495,7 +495,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "PHONE": "={{ $('Normalize Payload').item.json.senderPhone }}",
+            "PHONE": "={{ $('Normalize Payload').first().json.senderPhone }}",
             "NAME": "",
             "EMAIL": "",
             "CEP": "",
@@ -505,7 +505,7 @@
             "STAGE": "greeting",
             "STATUS": "active",
             "NOTES": "",
-            "LAST_MESSAGE": "={{ $('Normalize Payload').item.json.messageText }}",
+            "LAST_MESSAGE": "={{ $('Normalize Payload').first().json.messageText || '' }}",
             "FIRST_CONTACT": "={{ new Date().toISOString() }}",
             "LAST_CONTACT": "={{ new Date().toISOString() }}"
           }
@@ -552,7 +552,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('Normalize Payload').item.json.senderPhone }}\",\n  \"text\": \"Ola! No momento, consigo processar mensagens de texto, audio e video. Por favor, envie sua pergunta em um desses formatos.\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('Normalize Payload').first().json.senderPhone }}\",\n  \"text\": \"Ola! No momento, consigo processar mensagens de texto, audio e video. Por favor, envie sua pergunta em um desses formatos.\"\n}",
         "options": {}
       },
       "credentials": {
@@ -737,7 +737,7 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "position": [1600, 560],
       "parameters": {
-        "sessionKey": "=sofia-evo-{{ $('Normalize Payload').item.json.senderPhone }}",
+        "sessionKey": "=sofia-evo-{{ $('Normalize Payload').first().json.senderPhone }}",
         "sessionIdType": "customKey",
         "contextWindowLength": 50
       },
