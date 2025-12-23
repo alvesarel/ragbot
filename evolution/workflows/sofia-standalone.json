@@ -920,9 +920,9 @@
         },
         "columns": {
           "mappingMode": "autoMapInputData",
-          "value": {}
+          "value": {},
+          "matchingColumns": ["PHONE"]
         },
-        "matchingColumns": ["PHONE"],
         "options": {}
       },
       "credentials": {
