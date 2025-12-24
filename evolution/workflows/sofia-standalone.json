@@ -365,7 +365,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1640, 180],
       "parameters": {
-        "jsCode": "// Prepare patient context for AI agent\nconst patient = $('Lookup Patient').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: patient.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'patient',\n  patientData: {\n    name: patient.NAME || '',\n    email: patient.EMAIL || '',\n    cpf: patient.CPF || '',\n    dob: patient.DOB || '',\n    treatmentType: patient.TREATMENT_TYPE || '',\n    status: patient.STATUS || '',\n    registrationDate: patient.REGISTRATION_DATE || '',\n    notes: patient.NOTES || ''\n  }\n};"
+        "jsCode": "// Prepare patient context for AI agent\nconst patient = $('Lookup Patient').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\n// Get message text - check for transcription first (audio/video paths)\nlet messageText = normalizedData.messageText || '';\nif (normalizedData.messageType === 'audio') {\n  try {\n    messageText = $('Format Audio Transcription').first().json.text || '';\n  } catch (e) { /* not audio path */ }\n} else if (normalizedData.messageType === 'video') {\n  try {\n    messageText = $('Format Video Transcription').first().json.text || '';\n  } catch (e) { /* not video path */ }\n}\n\nreturn {\n  text: messageText,\n  phone: normalizedData.senderPhone,\n  contactName: patient.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'patient',\n  patientData: {\n    name: patient.NAME || '',\n    email: patient.EMAIL || '',\n    cpf: patient.CPF || '',\n    dob: patient.DOB || '',\n    treatmentType: patient.TREATMENT_TYPE || '',\n    status: patient.STATUS || '',\n    registrationDate: patient.REGISTRATION_DATE || '',\n    notes: patient.NOTES || ''\n  }\n};"
       },
       "typeVersion": 2
     },
@@ -377,7 +377,7 @@
       "parameters": {
         "text": "={{ $json.text }}",
         "options": {
-          "systemMessage": "# Sofia - Secretaria Virtual (Modo Paciente)\n\nVoce e Sofia, secretaria virtual de uma clinica de emagrecimento. Voce esta atendendo um PACIENTE registrado.\n\n## Contexto do Paciente\n- Nome: {{ $json.patientData.name }}\n- Tipo Tratamento: {{ $json.patientData.treatmentType }}\n- Status: {{ $json.patientData.status }}\n\n## Comportamento\n- Identifique-se como secretaria virtual\n- Acolha o paciente pelo nome\n- SEM emojis\n- Mensagens curtas e acolhedoras\n\n## Ferramenta RAG - USE SEMPRE\n**SEMPRE use query_knowledge_base para responder perguntas sobre:**\n- Horario de funcionamento\n- Informacoes sobre a clinica e contatos\n- Protocolo do tratamento (doses, escalacao)\n- Efeitos colaterais comuns e como manejar\n- Orientacoes gerais do tratamento\n\nSe encontrar resposta na base, RESPONDA diretamente (requires_handoff: false).\nSe NAO encontrar, encaminhe para humano (requires_handoff: true).\n\n## Classificacao de Urgencia\n**URGENTE** - Emergencias, sintomas severos, reacoes alergicas, paciente em distress\n**NORMAL** - Agendamento, reagendamento, renovacao, perguntas sobre tratamento\n**BAIXA** - Informacoes gerais, feedback\n\n## Tipo de Encaminhamento (handoff_to)\n**doctor** - Receitas, ajuste de dose, questoes MEDICAS, sintomas preocupantes\n**secretary** - Agendamento, reagendamento, pagamentos, questoes ADMINISTRATIVAS\n\n## Formato de Resposta OBRIGATORIO\n```json\n{\n  \"message\": \"Sua resposta ao paciente\",\n  \"urgency\": \"urgent|normal|low\",\n  \"request_type\": \"Categoria da solicitacao\",\n  \"summary\": \"Resumo em 1 frase\",\n  \"requires_handoff\": true,\n  \"handoff_to\": \"doctor|secretary|null\",\n  \"handoff_reason\": \"Motivo do encaminhamento ou null\"\n}\n```\n\n**Regra de requires_handoff:**\n- false: Se voce conseguiu responder usando a base de conhecimento\n- true: Se precisa de acao humana (receita, agendamento, caso medico)\n\n## Primeira Mensagem\n\"Ola {{ $json.patientData.name }}! Sou a Sofia, secretaria virtual. Como posso ajudar?\""
+          "systemMessage": "# Sofia - Secretaria Virtual da Leitner Saude (Modo Paciente)\n\nVoce e Sofia, secretaria virtual da Leitner Saude. Voce esta atendendo um PACIENTE registrado.\n\n## Equipe da Leitner Saude\n- **Medico**: Dr. Guilherme - responsavel por receitas, ajustes de dose, questoes medicas\n- **Secretaria**: Beth - responsavel por agendamentos, pagamentos, questoes administrativas\n\n## Contexto do Paciente\n- Nome: {{ $json.patientData.name }}\n- Tipo Tratamento: {{ $json.patientData.treatmentType }}\n- Status: {{ $json.patientData.status }}\n\n## Comportamento\n- Identifique-se como secretaria virtual\n- Acolha o paciente pelo nome\n- SEM emojis\n- Mensagens curtas e acolhedoras\n- Quando encaminhar, mencione o nome da pessoa (Dr. Guilherme ou Beth)\n\n## Ferramenta RAG - USE SEMPRE\n**SEMPRE use query_knowledge_base para responder perguntas sobre:**\n- Horario de funcionamento\n- Informacoes sobre a clinica e contatos\n- Protocolo do tratamento (doses, escalacao)\n- Efeitos colaterais comuns e como manejar\n- Orientacoes gerais do tratamento\n\nSe encontrar resposta na base, RESPONDA diretamente (requires_handoff: false).\nSe NAO encontrar, encaminhe para humano (requires_handoff: true).\n\n## Classificacao de Urgencia\n**URGENTE** - Emergencias, sintomas severos, reacoes alergicas, paciente em distress\n**NORMAL** - Agendamento, reagendamento, renovacao, perguntas sobre tratamento\n**BAIXA** - Informacoes gerais, feedback\n\n## Tipo de Encaminhamento (handoff_to)\n**doctor** - Dr. Guilherme: Receitas, ajuste de dose, questoes MEDICAS, sintomas preocupantes\n**secretary** - Beth: Agendamento, reagendamento, pagamentos, questoes ADMINISTRATIVAS\n\n## Formato de Resposta OBRIGATORIO\n```json\n{\n  \"message\": \"Sua resposta ao paciente\",\n  \"urgency\": \"urgent|normal|low\",\n  \"request_type\": \"Categoria da solicitacao\",\n  \"summary\": \"Resumo em 1 frase\",\n  \"requires_handoff\": true,\n  \"handoff_to\": \"doctor|secretary|null\",\n  \"handoff_reason\": \"Motivo do encaminhamento ou null\"\n}\n```\n\n**Regra de requires_handoff:**\n- false: Se voce conseguiu responder usando a base de conhecimento\n- true: Se precisa de acao humana (receita, agendamento, caso medico)\n\n## Primeira Mensagem\n\"Ola {{ $json.patientData.name }}! Sou a Sofia, secretaria virtual. Como posso ajudar?\""
         },
         "promptType": "define"
       },
@@ -425,7 +425,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2100, 180],
       "parameters": {
-        "jsCode": "// Process patient AI response\nconst agentOutput = $input.first().json.output || '';\nconst patientContext = $('Prepare Patient Context').first().json;\n\n// Try to parse JSON response\nlet urgency = 'normal';\nlet requestType = 'Solicitacao geral';\nlet summary = '';\nlet cleanMessage = agentOutput;\nlet requiresHandoff = true;\nlet handoffTo = 'secretary';\nlet handoffReason = null;\n\ntry {\n  const jsonMatch = agentOutput.match(/```json\\n?([\\s\\S]*?)\\n?```/) || agentOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const jsonStr = jsonMatch[1] || jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    urgency = parsed.urgency || 'normal';\n    requestType = parsed.request_type || 'Solicitacao geral';\n    summary = parsed.summary || '';\n    cleanMessage = parsed.message || agentOutput;\n    requiresHandoff = parsed.requires_handoff !== false;\n    handoffTo = parsed.handoff_to || 'secretary';\n    handoffReason = parsed.handoff_reason || null;\n  }\n} catch (e) {\n  cleanMessage = agentOutput.replace(/```json[\\s\\S]*?```/g, '').trim();\n}\n\nconst urgencyMap = { 'urgent': 'URGENTE', 'normal': 'NORMAL', 'low': 'BAIXA' };\n\n// Determine notification phone based on handoff type\nconst notifyPhone = handoffTo === 'doctor' ? '5511999724691' : '5511999986838';\nconst handoffLabel = handoffTo === 'doctor' ? 'MEDICO' : 'SECRETARIA';\n\nreturn {\n  responseMessage: cleanMessage,\n  patientPhone: patientContext.phone,\n  patientName: patientContext.patientData.name,\n  urgency: urgencyMap[urgency] || 'NORMAL',\n  requestType: requestType,\n  summary: summary || patientContext.text,\n  originalMessage: patientContext.text,\n  instanceName: patientContext.instanceName,\n  timestamp: new Date().toISOString(),\n  requiresHandoff: requiresHandoff,\n  handoffTo: handoffTo,\n  handoffLabel: handoffLabel,\n  handoffReason: handoffReason,\n  notifyPhone: notifyPhone\n};"
+        "jsCode": "// Process patient AI response\nconst agentOutput = $input.first().json.output || '';\nconst patientContext = $('Prepare Patient Context').first().json;\n\n// Try to parse JSON response\nlet urgency = 'normal';\nlet requestType = 'Solicitacao geral';\nlet summary = '';\nlet cleanMessage = agentOutput;\nlet requiresHandoff = true;\nlet handoffTo = 'secretary';\nlet handoffReason = null;\n\ntry {\n  const jsonMatch = agentOutput.match(/```json\\n?([\\s\\S]*?)\\n?```/) || agentOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const jsonStr = jsonMatch[1] || jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    urgency = parsed.urgency || 'normal';\n    requestType = parsed.request_type || 'Solicitacao geral';\n    summary = parsed.summary || '';\n    cleanMessage = parsed.message || agentOutput;\n    requiresHandoff = parsed.requires_handoff !== false;\n    handoffTo = parsed.handoff_to || 'secretary';\n    handoffReason = parsed.handoff_reason || null;\n  }\n} catch (e) {\n  cleanMessage = agentOutput.replace(/```json[\\s\\S]*?```/g, '').trim();\n}\n\nconst urgencyMap = { 'urgent': 'URGENTE', 'normal': 'NORMAL', 'low': 'BAIXA' };\n\n// Determine notification phone based on handoff type\nconst notifyPhone = handoffTo === 'doctor' ? '5511999724691' : '5511999986838';\nconst handoffLabel = handoffTo === 'doctor' ? 'DR. GUILHERME' : 'BETH';\n\nreturn {\n  responseMessage: cleanMessage,\n  patientPhone: patientContext.phone,\n  patientName: patientContext.patientData.name,\n  urgency: urgencyMap[urgency] || 'NORMAL',\n  requestType: requestType,\n  summary: summary || patientContext.text,\n  originalMessage: patientContext.text,\n  instanceName: patientContext.instanceName,\n  timestamp: new Date().toISOString(),\n  requiresHandoff: requiresHandoff,\n  handoffTo: handoffTo,\n  handoffLabel: handoffLabel,\n  handoffReason: handoffReason,\n  notifyPhone: notifyPhone\n};"
       },
       "typeVersion": 2
     },
@@ -502,19 +502,8 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "specifyBody": "keypairs",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "number",
-              "value": "={{ $json.number }}"
-            },
-            {
-              "name": "text",
-              "value": "={{ $json.text }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"text\": {{ JSON.stringify($json.text) }}\n}",
         "options": {}
       },
       "credentials": {
@@ -531,7 +520,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2040, 540],
       "parameters": {
-        "jsCode": "// Gather data from Normalize Payload for new lead creation\nconst normalizedData = $('Normalize Payload').first().json;\nconst now = new Date().toISOString();\n\nreturn {\n  PHONE: normalizedData.senderPhone || '',\n  NAME: '',\n  EMAIL: '',\n  CEP: '',\n  DOB: '',\n  CPF: '',\n  SOURCE: 'WhatsApp',\n  STAGE: 'greeting',\n  STATUS: 'active',\n  NOTES: '',\n  LAST_MESSAGE: normalizedData.messageText || '',\n  FIRST_CONTACT: now,\n  LAST_CONTACT: now\n};"
+        "jsCode": "// Gather data from Normalize Payload for new lead creation\nconst normalizedData = $('Normalize Payload').first().json;\nconst now = new Date().toISOString();\n\nreturn {\n  PHONE: normalizedData.senderPhone || '',\n  NAME: '',\n  EMAIL: '',\n  CEP: '',\n  DOB: '',\n  CPF: '',\n  SOURCE: 'WhatsApp',\n  STAGE: 'greeting',\n  STATUS: 'active',\n  NOTES: '',\n  LAST_MESSAGE: normalizedData.messageText || '',\n  FIRST_CONTACT: now,\n  LAST_CONTACT: now,\n  // Follow-up tracking (initialized)\n  FOLLOW_UP_ATTEMPTS: '0',\n  LAST_FOLLOW_UP: '',\n  NEXT_FOLLOW_UP_HOUR: ''\n};"
       },
       "typeVersion": 2
     },
@@ -572,7 +561,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2040, 340],
       "parameters": {
-        "jsCode": "// Prepare returning lead context with previous data\nconst lead = $('Lookup Lead').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: lead.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'returning_lead',\n  leadData: {\n    name: lead.NAME || '',\n    email: lead.EMAIL || '',\n    cep: lead.CEP || '',\n    dob: lead.DOB || '',\n    cpf: lead.CPF || '',\n    source: lead.SOURCE || '',\n    stage: lead.STAGE || 'greeting',\n    status: lead.STATUS || 'active',\n    notes: lead.NOTES || '',\n    firstContact: lead.FIRST_CONTACT || '',\n    lastContact: lead.LAST_CONTACT || ''\n  }\n};"
+        "jsCode": "// Prepare returning lead context with previous data\nconst lead = $('Lookup Lead').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\n\n// Get message text - check for transcription first (audio/video paths)\nlet messageText = normalizedData.messageText || '';\nif (normalizedData.messageType === 'audio') {\n  try {\n    messageText = $('Format Audio Transcription').first().json.text || '';\n  } catch (e) { /* not audio path */ }\n} else if (normalizedData.messageType === 'video') {\n  try {\n    messageText = $('Format Video Transcription').first().json.text || '';\n  } catch (e) { /* not video path */ }\n}\n\nreturn {\n  text: messageText,\n  phone: normalizedData.senderPhone,\n  contactName: lead.NAME || normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'returning_lead',\n  leadData: {\n    name: lead.NAME || '',\n    email: lead.EMAIL || '',\n    cep: lead.CEP || '',\n    dob: lead.DOB || '',\n    cpf: lead.CPF || '',\n    source: lead.SOURCE || '',\n    stage: lead.STAGE || 'greeting',\n    status: lead.STATUS || 'active',\n    notes: lead.NOTES || '',\n    firstContact: lead.FIRST_CONTACT || '',\n    lastContact: lead.LAST_CONTACT || ''\n  }\n};"
       },
       "typeVersion": 2
     },
@@ -582,7 +571,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2440, 540],
       "parameters": {
-        "jsCode": "// Prepare new lead context\nconst normalizedData = $('Normalize Payload').first().json;\n\nreturn {\n  text: normalizedData.messageText,\n  phone: normalizedData.senderPhone,\n  contactName: normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'new_lead',\n  leadData: {\n    name: '',\n    email: '',\n    cep: '',\n    dob: '',\n    cpf: '',\n    source: 'WhatsApp',\n    stage: 'greeting',\n    status: 'active',\n    notes: '',\n    firstContact: new Date().toISOString(),\n    lastContact: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Prepare new lead context\nconst normalizedData = $('Normalize Payload').first().json;\n\n// Get message text - check for transcription first (audio/video paths)\nlet messageText = normalizedData.messageText || '';\nif (normalizedData.messageType === 'audio') {\n  try {\n    messageText = $('Format Audio Transcription').first().json.text || '';\n  } catch (e) { /* not audio path */ }\n} else if (normalizedData.messageType === 'video') {\n  try {\n    messageText = $('Format Video Transcription').first().json.text || '';\n  } catch (e) { /* not video path */ }\n}\n\nreturn {\n  text: messageText,\n  phone: normalizedData.senderPhone,\n  contactName: normalizedData.senderName,\n  instanceName: normalizedData.instanceName,\n  messageId: normalizedData.messageId,\n  messageType: normalizedData.messageType,\n  senderType: 'new_lead',\n  leadData: {\n    name: '',\n    email: '',\n    cep: '',\n    dob: '',\n    cpf: '',\n    source: 'WhatsApp',\n    stage: 'greeting',\n    status: 'active',\n    notes: '',\n    firstContact: new Date().toISOString(),\n    lastContact: new Date().toISOString()\n  }\n};"
       },
       "typeVersion": 2
     },
@@ -747,7 +736,7 @@
       "parameters": {
         "text": "={{ $json.text }}",
         "options": {
-          "systemMessage": "# Sofia - Assistente Virtual\n\nVoce e Sofia, assistente virtual de uma clinica de emagrecimento.\n\n## Contexto do Lead\n- Telefone: {{ $json.phone }}\n- Nome: {{ $json.contactName }}\n- Tipo: {{ $json.senderType }}\n- Estagio atual: {{ $json.leadData.stage }}\n- Dados ja coletados:\n  - Nome: {{ $json.leadData.name || 'Nao informado' }}\n  - Email: {{ $json.leadData.email || 'Nao informado' }}\n  - CEP: {{ $json.leadData.cep || 'Nao informado' }}\n  - Data Nasc: {{ $json.leadData.dob || 'Nao informado' }}\n  - CPF: {{ $json.leadData.cpf || 'Nao informado' }}\n  - Origem: {{ $json.leadData.source || 'Nao informado' }}\n\n## REGRAS CRITICAS\n- NAO repita perguntas para dados ja coletados\n- Se lead retornando, use o nome e continue de onde parou\n- Se novo lead, inicie do zero\n- Profissional, acolhedora, concisa, SEM emojis\n- Mensagens curtas (max 2 paragrafos)\n\n## Ferramenta RAG\nUse query_knowledge_base para protocolos, tratamentos, clinica, metodologia.\n\n## Precos - IMPORTANTE\n**NAO mencione precos a menos que o cliente PERGUNTE EXPLICITAMENTE.**\n\n## Dados a Coletar\nNome, Email, CEP, Data nascimento, Origem (como nos conheceu).\nIdade < 16: recuse educadamente.\n\n## Escalacao Humana\nEscale quando: usuario pede atendimento humano, gravidez/amamentacao, condicoes serias, frustrado.\n\n## FORMATO DE RESPOSTA OBRIGATORIO\nSEMPRE responda com JSON valido neste formato:\n```json\n{\n  \"message\": \"Sua resposta ao usuario aqui\",\n  \"extracted_data\": {\n    \"name\": \"nome extraido ou null\",\n    \"email\": \"email extraido ou null\",\n    \"cep\": \"cep extraido ou null\",\n    \"date_of_birth\": \"data extraida ou null\",\n    \"referral_source\": \"origem extraida ou null\"\n  },\n  \"new_stage\": \"greeting|discovery|qualification|value_building|scheduling|confirmation\",\n  \"action\": \"await_response|schedule_appointment|request_handoff\",\n  \"requires_handoff\": false,\n  \"handoff_reason\": null\n}\n```\n\n**IMPORTANTE sobre extracted_data:**\n- Extraia dados de QUALQUER formato que o usuario fornecer\n- Exemplos: 'meu nome e Joao' -> name: 'Joao'\n- 'email joao@email.com' -> email: 'joao@email.com'\n- 'nasci em 15/03/1990' -> date_of_birth: '1990-03-15'\n- 'moro no 01310-100' -> cep: '01310-100'\n- 'vi no instagram' -> referral_source: 'Instagram'\n- Mantenha null para dados nao fornecidos\n- NUNCA perca dados ja coletados\n\n## Primeira Mensagem (novo lead)\nmessage: \"Ola! Sou a Sofia, assistente virtual da clinica. Estou aqui para ajudar com informacoes sobre nossos tratamentos. Se preferir, pode solicitar atendimento humano. Como posso ajudar?\"\n\n## Primeira Mensagem (lead retornando)\nmessage: \"Ola [NOME]! Que bom te ver novamente. Como posso ajudar hoje?\""
+          "systemMessage": "# Sofia - Assistente Virtual da Leitner Saude\n\nVoce e Sofia, assistente virtual da Leitner Saude.\n\n## Equipe da Leitner Saude\n- **Medico**: Dr. Guilherme - responsavel por consultas e avaliacoes medicas\n- **Secretaria**: Beth - responsavel por agendamentos e informacoes administrativas\n\n## Contexto do Lead\n- Telefone: {{ $json.phone }}\n- Nome: {{ $json.contactName }}\n- Tipo: {{ $json.senderType }}\n- Estagio atual: {{ $json.leadData.stage }}\n- Dados ja coletados:\n  - Nome: {{ $json.leadData.name || 'Nao informado' }}\n  - Email: {{ $json.leadData.email || 'Nao informado' }}\n  - CEP: {{ $json.leadData.cep || 'Nao informado' }}\n  - Data Nasc: {{ $json.leadData.dob || 'Nao informado' }}\n  - CPF: {{ $json.leadData.cpf || 'Nao informado' }}\n  - Origem: {{ $json.leadData.source || 'Nao informado' }}\n\n## REGRAS CRITICAS\n- NAO repita perguntas para dados ja coletados\n- Se lead retornando, use o nome e continue de onde parou\n- Se novo lead, inicie do zero\n- Profissional, acolhedora, concisa, SEM emojis\n- Mensagens curtas (max 2 paragrafos)\n- Quando encaminhar para humano, mencione que Beth entrara em contato\n\n## Ferramenta RAG\nUse query_knowledge_base para protocolos, tratamentos, clinica, metodologia.\n\n## Precos - IMPORTANTE\n**NAO mencione precos a menos que o cliente PERGUNTE EXPLICITAMENTE.**\n\n## Dados a Coletar\nNome, Email, CEP, Data nascimento, Origem (como nos conheceu).\nIdade < 16: recuse educadamente.\n\n## Escalacao Humana\nEscale para Beth quando: usuario pede atendimento humano, gravidez/amamentacao, condicoes serias, frustrado, pronto para agendar.\n\n## FORMATO DE RESPOSTA OBRIGATORIO\nSEMPRE responda com JSON valido neste formato:\n```json\n{\n  \"message\": \"Sua resposta ao usuario aqui\",\n  \"extracted_data\": {\n    \"name\": \"nome extraido ou null\",\n    \"email\": \"email extraido ou null\",\n    \"cep\": \"cep extraido ou null\",\n    \"date_of_birth\": \"data extraida ou null\",\n    \"referral_source\": \"origem extraida ou null\"\n  },\n  \"new_stage\": \"greeting|discovery|qualification|value_building|scheduling|confirmation\",\n  \"action\": \"await_response|schedule_appointment|request_handoff\",\n  \"requires_handoff\": false,\n  \"handoff_reason\": null\n}\n```\n\n**IMPORTANTE sobre extracted_data:**\n- Extraia dados de QUALQUER formato que o usuario fornecer\n- Exemplos: 'meu nome e Joao' -> name: 'Joao'\n- 'email joao@email.com' -> email: 'joao@email.com'\n- 'nasci em 15/03/1990' -> date_of_birth: '1990-03-15'\n- 'moro no 01310-100' -> cep: '01310-100'\n- 'vi no instagram' -> referral_source: 'Instagram'\n- Mantenha null para dados nao fornecidos\n- NUNCA perca dados ja coletados\n\n## Primeira Mensagem (novo lead)\nmessage: \"Ola! Sou a Sofia, assistente virtual da Leitner Saude. Estou aqui para ajudar com informacoes sobre nossos tratamentos. Se preferir, pode solicitar atendimento humano. Como posso ajudar?\"\n\n## Primeira Mensagem (lead retornando)\nmessage: \"Ola [NOME]! Que bom te ver novamente. Como posso ajudar hoje?\""
         },
         "promptType": "define"
       },
@@ -924,7 +913,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2360, 260],
       "parameters": {
-        "jsCode": "// Prepare handoff notification message\nconst data = $('Process Response').first().json;\nconst leadData = data.leadData || {};\n\nconst message = `*NOVO LEAD PRONTO PARA ${data.handoffType || 'ATENDIMENTO'}*\n\n*Nome:* ${leadData.name || 'Nao informado'}\n*Telefone:* ${data.leadPhone || 'Nao informado'}\n*Email:* ${leadData.email || 'Nao informado'}\n*CEP:* ${leadData.cep || 'Nao informado'}\n*Nascimento:* ${leadData.dob || 'Nao informado'}\n*Origem:* ${leadData.source || 'WhatsApp'}\n*Estagio:* ${leadData.stage || 'greeting'}\n\n*Motivo:* ${data.handoffReason || 'Solicitacao de agendamento'}\n\n*Ultima msg:* ${data.lastMessage || ''}`;\n\nreturn {\n  number: '5511999724691',\n  text: message\n};"
+        "jsCode": "// Prepare handoff notification message for Beth\nconst data = $('Process Response').first().json;\nconst leadData = data.leadData || {};\n\nconst message = `*BETH - NOVO LEAD PRONTO PARA ${data.handoffType || 'ATENDIMENTO'}*\n\n*Nome:* ${leadData.name || 'Nao informado'}\n*Telefone:* ${data.leadPhone || 'Nao informado'}\n*Email:* ${leadData.email || 'Nao informado'}\n*CEP:* ${leadData.cep || 'Nao informado'}\n*Nascimento:* ${leadData.dob || 'Nao informado'}\n*Origem:* ${leadData.source || 'WhatsApp'}\n*Estagio:* ${leadData.stage || 'greeting'}\n\n*Motivo:* ${data.handoffReason || 'Solicitacao de agendamento'}\n\n*Ultima msg:* ${data.lastMessage || ''}`;\n\nreturn {\n  number: '5511999986838',\n  text: message\n};"
       },
       "typeVersion": 2
     },
@@ -939,19 +928,8 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "specifyBody": "keypairs",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "number",
-              "value": "={{ $json.number }}"
-            },
-            {
-              "name": "text",
-              "value": "={{ $json.text }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"text\": {{ JSON.stringify($json.text) }}\n}",
         "options": {}
       },
       "credentials": {
@@ -968,7 +946,7 @@
       "type": "n8n-nodes-base.code",
       "position": [2360, 420],
       "parameters": {
-        "jsCode": "// Prepare lead update data from Process Response\nconst processedData = $('Process Response').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\nconst leadData = processedData.leadData || {};\n\nreturn {\n  PHONE: normalizedData.senderPhone || '',\n  NAME: leadData.name || '',\n  EMAIL: leadData.email || '',\n  CEP: leadData.cep || '',\n  DOB: leadData.dob || '',\n  CPF: leadData.cpf || '',\n  SOURCE: leadData.source || 'WhatsApp',\n  STAGE: leadData.stage || 'greeting',\n  STATUS: leadData.status || 'active',\n  NOTES: leadData.notes || '',\n  LAST_MESSAGE: processedData.lastMessage || '',\n  LAST_CONTACT: new Date().toISOString()\n};"
+        "jsCode": "// Prepare lead update data from Process Response\nconst processedData = $('Process Response').first().json;\nconst normalizedData = $('Normalize Payload').first().json;\nconst leadData = processedData.leadData || {};\n\nreturn {\n  PHONE: normalizedData.senderPhone || '',\n  NAME: leadData.name || '',\n  EMAIL: leadData.email || '',\n  CEP: leadData.cep || '',\n  DOB: leadData.dob || '',\n  CPF: leadData.cpf || '',\n  SOURCE: leadData.source || 'WhatsApp',\n  STAGE: leadData.stage || 'greeting',\n  STATUS: leadData.status || 'active',\n  NOTES: leadData.notes || '',\n  LAST_MESSAGE: processedData.lastMessage || '',\n  LAST_CONTACT: new Date().toISOString(),\n  // Reset follow-up counters when lead responds\n  FOLLOW_UP_ATTEMPTS: '0',\n  LAST_FOLLOW_UP: '',\n  NEXT_FOLLOW_UP_HOUR: ''\n};"
       },
       "typeVersion": 2
     },
@@ -1005,6 +983,304 @@
       "typeVersion": 4.5
     },
     {
+      "id": "schedule-trigger",
+      "name": "Follow-up Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [220, 700],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtMinute": 0,
+              "triggerAtHour": [10, 12, 14, 16, 18, 20]
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "get-current-hour",
+      "name": "Get Current Hour",
+      "type": "n8n-nodes-base.code",
+      "position": [420, 700],
+      "parameters": {
+        "jsCode": "// Get current hour in Sao Paulo timezone\nconst now = new Date();\nconst saoPauloOffset = -3;\nconst utcHours = now.getUTCHours();\nconst saoPauloHour = (utcHours + saoPauloOffset + 24) % 24;\n\nreturn {\n  currentHour: saoPauloHour,\n  timestamp: now.toISOString()\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "read-leads-followup",
+      "name": "Read Leads (Follow-up)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [620, 700],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "filter-cold-leads",
+      "name": "Filter Cold Leads",
+      "type": "n8n-nodes-base.code",
+      "position": [820, 700],
+      "parameters": {
+        "jsCode": "// Filter leads that need follow-up\nconst currentHour = $('Get Current Hour').first().json.currentHour;\nconst now = new Date();\nconst oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\nconst leads = $input.all();\nconst coldLeads = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  \n  // Skip if not active\n  if (lead.STATUS !== 'active') continue;\n  \n  // Skip if already at max attempts\n  const attempts = parseInt(lead.FOLLOW_UP_ATTEMPTS) || 0;\n  if (attempts >= 5) continue;\n  \n  // Check if last contact was more than 24 hours ago\n  const lastContact = new Date(lead.LAST_CONTACT);\n  if (lastContact >= oneDayAgo) continue;\n  \n  // Check if already followed up today\n  if (lead.LAST_FOLLOW_UP) {\n    const lastFollowUp = new Date(lead.LAST_FOLLOW_UP);\n    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());\n    const followUpDay = new Date(lastFollowUp.getFullYear(), lastFollowUp.getMonth(), lastFollowUp.getDate());\n    if (followUpDay >= today) continue;\n  }\n  \n  // Check hour matching\n  const nextHour = parseInt(lead.NEXT_FOLLOW_UP_HOUR) || 0;\n  \n  // First attempt - only trigger at 10 AM\n  if (attempts === 0 && !lead.NEXT_FOLLOW_UP_HOUR) {\n    if (currentHour !== 10) continue;\n  } else {\n    if (nextHour !== currentHour) continue;\n  }\n  \n  coldLeads.push({\n    ...lead,\n    currentAttempt: attempts + 1,\n    currentHour: currentHour\n  });\n}\n\nreturn coldLeads;"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "has-cold-leads",
+      "name": "Has Cold Leads?",
+      "type": "n8n-nodes-base.if",
+      "position": [1020, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-leads",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-followup-context",
+      "name": "Prepare Follow-up Context",
+      "type": "n8n-nodes-base.code",
+      "position": [1220, 620],
+      "parameters": {
+        "jsCode": "// Prepare context for each lead with attempt-specific approach\nconst lead = $input.first().json;\nconst attempt = lead.currentAttempt;\n\nconst approaches = {\n  1: { approach: 'gentle_checkin', description: 'Gentle check-in - ask if they have any remaining questions', nextHour: 14 },\n  2: { approach: 'value_highlight', description: 'Highlight the unique value - Dr. Guilherme expertise, personalized treatment', nextHour: 18 },\n  3: { approach: 'social_proof', description: 'Share success stories and results from the program', nextHour: 12 },\n  4: { approach: 'availability', description: 'Create gentle urgency - mention consultation availability', nextHour: 16 },\n  5: { approach: 'final_human', description: 'Final attempt - offer direct contact with Beth for scheduling', nextHour: null }\n};\n\nconst currentApproach = approaches[attempt] || approaches[1];\n\nreturn {\n  phone: lead.PHONE,\n  leadName: lead.NAME || 'amigo(a)',\n  email: lead.EMAIL || '',\n  stage: lead.STAGE || 'greeting',\n  lastMessage: lead.LAST_MESSAGE || '',\n  source: lead.SOURCE || 'WhatsApp',\n  attemptNumber: attempt,\n  approach: currentApproach.approach,\n  approachDescription: currentApproach.description,\n  nextFollowUpHour: currentApproach.nextHour,\n  isLastAttempt: attempt >= 5\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "followup-ai-agent",
+      "name": "Follow-up AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1420, 620],
+      "parameters": {
+        "text": "=Generate a follow-up message for this lead.",
+        "options": {
+          "systemMessage": "# Sofia - Follow-up de Leads da Leitner Saude\n\nVoce e Sofia, assistente virtual da Leitner Saude, fazendo follow-up com um lead que nao respondeu.\n\n## Contexto do Lead\n- Nome: {{ $json.leadName }}\n- Estagio: {{ $json.stage }}\n- Ultima mensagem: \"{{ $json.lastMessage }}\"\n- Origem: {{ $json.source }}\n\n## Tentativa Atual\n- Numero: {{ $json.attemptNumber }} de 5\n- Abordagem: {{ $json.approachDescription }}\n\n## Abordagens por Tentativa\n\n**Tentativa 1 - Check-in Gentil:**\nPergunte se ficou alguma duvida. Seja breve e acolhedor.\nExemplo: \"Ola [NOME]! Sou a Sofia da Leitner Saude. Vi que conversamos e queria saber se posso ajudar com alguma duvida?\"\n\n**Tentativa 2 - Destaque de Valor:**\nMencione o diferencial: Dr. Guilherme, tratamento personalizado, acompanhamento continuo.\n\n**Tentativa 3 - Prova Social:**\nMencione resultados do programa (sem inventar numeros especificos).\n\n**Tentativa 4 - Disponibilidade:**\nMencione que as vagas para consulta sao limitadas.\n\n**Tentativa 5 - Final + Humano:**\nUltima tentativa. Ofereca contato direto com Beth.\nExemplo: \"Ola [NOME]! Entendo que pode estar ocupado(a). Se preferir, a Beth, nossa secretaria, pode entrar em contato diretamente. Posso pedir para ela ligar?\"\n\n## Regras\n- SEM emojis\n- Maximo 2 paragrafos curtos\n- Profissional mas caloroso\n- Use o nome do lead se disponivel\n- NAO seja insistente ou desesperado\n- NAO mencione que e uma mensagem automatica\n- NAO mencione precos\n\n## Formato de Resposta\nResponda APENAS com a mensagem de follow-up, sem JSON ou formatacao adicional."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.6
+    },
+    {
+      "id": "followup-model",
+      "name": "Claude Haiku (Follow-up)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [1420, 840],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20241022",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokensToSample": 512,
+          "temperature": 0.7
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-creds",
+          "name": "Anthropic"
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "send-followup",
+      "name": "Send Follow-up Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1640, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Prepare Follow-up Context').first().json.phone }}\",\n  \"text\": {{ JSON.stringify($json.output) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "update-lead-followup",
+      "name": "Update Lead Follow-up",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1860, 620],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "FOLLOW_UP_ATTEMPTS": "={{ $('Prepare Follow-up Context').first().json.attemptNumber }}",
+            "LAST_FOLLOW_UP": "={{ $now.toISO() }}",
+            "NEXT_FOLLOW_UP_HOUR": "={{ $('Prepare Follow-up Context').first().json.nextFollowUpHour || '' }}"
+          },
+          "matchingColumns": ["PHONE"]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "check-max-attempts",
+      "name": "Max Attempts Reached?",
+      "type": "n8n-nodes-base.if",
+      "position": [2080, 620],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-last-attempt",
+              "leftValue": "={{ $('Prepare Follow-up Context').first().json.isLastAttempt }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "mark-cold",
+      "name": "Mark Lead as Cold",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2300, 540],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "STATUS": "cold",
+            "NOTES": "=Lead marcado como frio apos 5 tentativas de follow-up sem resposta"
+          },
+          "matchingColumns": ["PHONE"]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "prepare-beth-cold-notification",
+      "name": "Prepare Beth Notification",
+      "type": "n8n-nodes-base.code",
+      "position": [2520, 540],
+      "parameters": {
+        "jsCode": "// Prepare notification for Beth about cold lead\nconst context = $('Prepare Follow-up Context').first().json;\n\nconst message = `*BETH - LEAD MARCADO COMO FRIO*\n\n*Nome:* ${context.leadName}\n*Telefone:* ${context.phone}\n*Email:* ${context.email || 'Nao informado'}\n*Estagio:* ${context.stage}\n*Origem:* ${context.source}\n\n*Tentativas:* 5 follow-ups sem resposta\n*Ultima msg do lead:* \"${context.lastMessage}\"\n\n*Acao sugerida:* Avaliar se vale contato telefonico ou arquivar.`;\n\nreturn {\n  number: '5511999986838',\n  text: message\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "notify-beth-cold",
+      "name": "Notify Beth (Cold Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2740, 540],
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution-api-production-9395.up.railway.app/message/sendText/whatsapp-teste",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"text\": {{ JSON.stringify($json.text) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
       "id": "sticky-note-main",
       "name": "Main Info",
       "type": "n8n-nodes-base.stickyNote",
@@ -1014,6 +1290,19 @@
         "width": 580,
         "height": 260,
         "content": "## Sofia Evolution - Multi-Role Virtual Secretary\n\nThis workflow handles 3 sender types:\\n- **Patient**: Virtual secretary mode, urgency classification, always handoff\\n- **Returning Lead**: Continue qualification with previous data\\n- **New Lead**: Create record, start qualification\\n\\n### Flow: Message → Lookup Patient → Is Patient?\\n→ YES: Patient Flow (secretary mode)\\n→ NO: Lookup Lead → Is Returning Lead?\\n  → YES: Load context → Lead AI Agent\\n  → NO: Create Record → Lead AI Agent\\n\\n### Configuration (Hardcoded)\\n- **Evolution API:** https://evolution-api-production-9395.up.railway.app\\n- **Instance:** whatsapp-teste\\n- **Support Phone:** 5511999724691\\n- **Google Sheet ID:** 1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70 (AllPatients + Leads tabs)\\n\\n### Required Credentials\\n- `evolution-api-creds` (Header Auth with apikey)\\n- `anthropic-creds` (Claude Haiku)\\n- `openai-creds` (Whisper + embeddings)\\n- `qdrant-creds` (Vector store)\\n- `google-sheets-creds` (Google Sheets OAuth2)"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-followup",
+      "name": "Follow-up Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 600],
+      "parameters": {
+        "color": 5,
+        "width": 580,
+        "height": 200,
+        "content": "## Lead Follow-up System (Scheduled)\n\n**Runs:** Every 2 hours (10 AM - 8 PM Sao Paulo)\n\n**Strategy (5 attempts over 5 days):**\\n1. Day 1, 10 AM - Gentle check-in\\n2. Day 2, 2 PM - Value highlight (Dr. Guilherme)\\n3. Day 3, 6 PM - Social proof\\n4. Day 4, 12 PM - Availability\\n5. Day 5, 4 PM - Final + offer Beth contact\\n\\n**After 5 attempts:** Mark as cold + notify Beth\\n\\n**Reset:** Counters reset when lead responds"
       },
       "typeVersion": 1
     }
@@ -1158,6 +1447,51 @@
     },
     "Patient Memory": {
       "ai_memory": [[{"node": "Patient AI Agent", "type": "ai_memory", "index": 0}]]
+    },
+    "Follow-up Schedule": {
+      "main": [[{"node": "Get Current Hour", "type": "main", "index": 0}]]
+    },
+    "Get Current Hour": {
+      "main": [[{"node": "Read Leads (Follow-up)", "type": "main", "index": 0}]]
+    },
+    "Read Leads (Follow-up)": {
+      "main": [[{"node": "Filter Cold Leads", "type": "main", "index": 0}]]
+    },
+    "Filter Cold Leads": {
+      "main": [[{"node": "Has Cold Leads?", "type": "main", "index": 0}]]
+    },
+    "Has Cold Leads?": {
+      "main": [
+        [{"node": "Prepare Follow-up Context", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Prepare Follow-up Context": {
+      "main": [[{"node": "Follow-up AI Agent", "type": "main", "index": 0}]]
+    },
+    "Follow-up AI Agent": {
+      "main": [[{"node": "Send Follow-up Message", "type": "main", "index": 0}]]
+    },
+    "Claude Haiku (Follow-up)": {
+      "ai_languageModel": [[{"node": "Follow-up AI Agent", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Send Follow-up Message": {
+      "main": [[{"node": "Update Lead Follow-up", "type": "main", "index": 0}]]
+    },
+    "Update Lead Follow-up": {
+      "main": [[{"node": "Max Attempts Reached?", "type": "main", "index": 0}]]
+    },
+    "Max Attempts Reached?": {
+      "main": [
+        [{"node": "Mark Lead as Cold", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Mark Lead as Cold": {
+      "main": [[{"node": "Prepare Beth Notification", "type": "main", "index": 0}]]
+    },
+    "Prepare Beth Notification": {
+      "main": [[{"node": "Notify Beth (Cold Lead)", "type": "main", "index": 0}]]
     }
   },
   "settings": {
