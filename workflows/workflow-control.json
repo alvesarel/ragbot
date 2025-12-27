@@ -1,0 +1,447 @@
+{
+  "name": "Workflow Control - WhatsApp Admin",
+  "meta": {
+    "instanceId": "workflow-control-admin",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "evolution-webhook",
+      "name": "Evolution Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [220, 340],
+      "webhookId": "workflow-control-webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-control",
+        "options": {
+          "responseMode": "onReceived",
+          "responseCode": 200
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "filter-message-events",
+      "name": "Is Message Event?",
+      "type": "n8n-nodes-base.if",
+      "position": [420, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-message-event",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "filter-incoming",
+      "name": "Is Incoming?",
+      "type": "n8n-nodes-base.if",
+      "position": [620, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "not-from-me",
+              "leftValue": "={{ $json.body.data?.key?.fromMe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "normalize-payload",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [820, 340],
+      "parameters": {
+        "jsCode": "// Normalize Evolution API payload\nconst webhookData = $input.first().json.body;\nconst data = webhookData.data || {};\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number from remoteJid\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace('@g.us', '')\n  .replace(/^\\+/, '');\n\n// Extract message text\nlet messageText = '';\nif (message.conversation) {\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageText = message.extendedTextMessage.text;\n}\n\nreturn {\n  senderPhone: phone,\n  senderName: data.pushName || phone,\n  messageText: messageText.toLowerCase().trim(),\n  instanceName: webhookData.instance || 'whatsapp-teste'\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "check-whitelist",
+      "name": "Is Whitelisted?",
+      "type": "n8n-nodes-base.if",
+      "position": [1020, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-beth",
+              "leftValue": "={{ $json.senderPhone }}",
+              "rightValue": "5511999986838",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "parse-command",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "position": [1220, 260],
+      "parameters": {
+        "jsCode": "// Parse admin command from message\nconst message = $input.first().json.messageText;\nconst senderPhone = $input.first().json.senderPhone;\nconst instanceName = $input.first().json.instanceName;\n\n// Define commands\nconst activateCommands = ['ativar sofia', 'sofia on', 'ligar sofia', 'ativar bot', 'bot on'];\nconst deactivateCommands = ['desativar sofia', 'sofia off', 'desligar sofia', 'desativar bot', 'bot off'];\nconst statusCommands = ['status sofia', 'sofia status', 'status bot'];\n\nlet action = null;\nlet targetWorkflow = 'Sofia Evolution - Standalone Lead Qualification';\n\nif (activateCommands.some(cmd => message.includes(cmd))) {\n  action = 'activate';\n} else if (deactivateCommands.some(cmd => message.includes(cmd))) {\n  action = 'deactivate';\n} else if (statusCommands.some(cmd => message.includes(cmd))) {\n  action = 'status';\n}\n\nreturn {\n  action,\n  targetWorkflow,\n  senderPhone,\n  instanceName,\n  originalMessage: message,\n  isValidCommand: action !== null\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "is-valid-command",
+      "name": "Valid Command?",
+      "type": "n8n-nodes-base.if",
+      "position": [1420, 260],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-action",
+              "leftValue": "={{ $json.isValidCommand }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "route-action",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "position": [1620, 180],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Activate",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "activate"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Deactivate",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "deactivate"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Status",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "activate-workflow",
+      "name": "Activate Sofia",
+      "type": "n8n-nodes-base.n8n",
+      "position": [1860, 60],
+      "parameters": {
+        "resource": "workflow",
+        "operation": "activate",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "deactivate-workflow",
+      "name": "Deactivate Sofia",
+      "type": "n8n-nodes-base.n8n",
+      "position": [1860, 180],
+      "parameters": {
+        "resource": "workflow",
+        "operation": "deactivate",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "get-workflow-status",
+      "name": "Get Sofia Status",
+      "type": "n8n-nodes-base.n8n",
+      "position": [1860, 300],
+      "parameters": {
+        "resource": "workflow",
+        "operation": "get",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "prepare-activate-response",
+      "name": "Prepare Activate Response",
+      "type": "n8n-nodes-base.code",
+      "position": [2080, 60],
+      "parameters": {
+        "jsCode": "const context = $('Parse Command').first().json;\n\nreturn {\n  number: context.senderPhone,\n  text: '*Sofia ATIVADA*\\n\\nO bot de atendimento esta funcionando normalmente.\\n\\nComandos disponiveis:\\n- \"desativar sofia\" - para pausar\\n- \"status sofia\" - verificar status',\n  instanceName: context.instanceName\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-deactivate-response",
+      "name": "Prepare Deactivate Response",
+      "type": "n8n-nodes-base.code",
+      "position": [2080, 180],
+      "parameters": {
+        "jsCode": "const context = $('Parse Command').first().json;\n\nreturn {\n  number: context.senderPhone,\n  text: '*Sofia DESATIVADA*\\n\\nO bot de atendimento foi pausado. Mensagens nao serao respondidas automaticamente.\\n\\nComandos disponiveis:\\n- \"ativar sofia\" - para reativar\\n- \"status sofia\" - verificar status',\n  instanceName: context.instanceName\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "prepare-status-response",
+      "name": "Prepare Status Response",
+      "type": "n8n-nodes-base.code",
+      "position": [2080, 300],
+      "parameters": {
+        "jsCode": "const workflow = $input.first().json;\nconst context = $('Parse Command').first().json;\n\nconst isActive = workflow.active === true;\nconst statusEmoji = isActive ? 'ATIVO' : 'INATIVO';\nconst statusText = isActive \n  ? 'O bot esta respondendo mensagens normalmente.'\n  : 'O bot esta pausado e NAO responde mensagens.';\n\nreturn {\n  number: context.senderPhone,\n  text: `*Status da Sofia: ${statusEmoji}*\\n\\n${statusText}\\n\\nComandos disponiveis:\\n- \"ativar sofia\" - ligar bot\\n- \"desativar sofia\" - pausar bot`,\n  instanceName: context.instanceName\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "send-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2300, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution-api-production-9395.up.railway.app/message/sendText/{{ $json.instanceName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.number }}\",\n  \"text\": {{ JSON.stringify($json.text) }}\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "send-invalid-command",
+      "name": "Send Invalid Command",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1620, 340],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution-api-production-9395.up.railway.app/message/sendText/{{ $('Normalize Payload').first().json.instanceName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Normalize Payload').first().json.senderPhone }}\",\n  \"text\": \"*Comando nao reconhecido*\\n\\nComandos disponiveis:\\n- \\\"ativar sofia\\\" ou \\\"sofia on\\\"\\n- \\\"desativar sofia\\\" ou \\\"sofia off\\\"\\n- \\\"status sofia\\\"\"\n}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "sticky-note",
+      "name": "Workflow Control Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 60],
+      "parameters": {
+        "color": 6,
+        "width": 500,
+        "height": 220,
+        "content": "## Workflow Control - WhatsApp Admin\n\nAllows whitelisted phone numbers to control Sofia workflow via WhatsApp.\n\n**Whitelisted Numbers:**\n- Beth: 5511999986838\n\n**Commands:**\n- `ativar sofia` / `sofia on` - Activate Sofia\n- `desativar sofia` / `sofia off` - Deactivate Sofia\n- `status sofia` - Check current status\n\n**Setup Required:**\n1. Import workflow to n8n\n2. Select Sofia workflow in the n8n nodes (Activate/Deactivate/Get)\n3. Activate this workflow\n4. Configure Evolution API webhook: `/webhook/workflow-control`"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Evolution Webhook": {
+      "main": [[{"node": "Is Message Event?", "type": "main", "index": 0}]]
+    },
+    "Is Message Event?": {
+      "main": [[{"node": "Is Incoming?", "type": "main", "index": 0}], []]
+    },
+    "Is Incoming?": {
+      "main": [[{"node": "Normalize Payload", "type": "main", "index": 0}], []]
+    },
+    "Normalize Payload": {
+      "main": [[{"node": "Is Whitelisted?", "type": "main", "index": 0}]]
+    },
+    "Is Whitelisted?": {
+      "main": [[{"node": "Parse Command", "type": "main", "index": 0}], []]
+    },
+    "Parse Command": {
+      "main": [[{"node": "Valid Command?", "type": "main", "index": 0}]]
+    },
+    "Valid Command?": {
+      "main": [
+        [{"node": "Route Action", "type": "main", "index": 0}],
+        [{"node": "Send Invalid Command", "type": "main", "index": 0}]
+      ]
+    },
+    "Route Action": {
+      "main": [
+        [{"node": "Activate Sofia", "type": "main", "index": 0}],
+        [{"node": "Deactivate Sofia", "type": "main", "index": 0}],
+        [{"node": "Get Sofia Status", "type": "main", "index": 0}]
+      ]
+    },
+    "Activate Sofia": {
+      "main": [[{"node": "Prepare Activate Response", "type": "main", "index": 0}]]
+    },
+    "Deactivate Sofia": {
+      "main": [[{"node": "Prepare Deactivate Response", "type": "main", "index": 0}]]
+    },
+    "Get Sofia Status": {
+      "main": [[{"node": "Prepare Status Response", "type": "main", "index": 0}]]
+    },
+    "Prepare Activate Response": {
+      "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
+    },
+    "Prepare Deactivate Response": {
+      "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
+    },
+    "Prepare Status Response": {
+      "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Admin",
+      "id": "12"
+    },
+    {
+      "name": "Control",
+      "id": "13"
+    }
+  ],
+  "pinData": {}
+}
