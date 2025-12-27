@@ -59,11 +59,10 @@ curl -X PUT 'http://localhost:6333/collections/clinic_knowledge_base' \
 ```
 ragbot/
 ├── workflows/               # n8n workflow JSON exports (Evolution API)
-│   ├── sofia-standalone.json     # Lead qualification + calendar
+│   ├── sofia-standalone.json     # Lead qualification
 │   ├── diana-standalone.json     # Patient check-ins
 │   ├── yara-evolution.json       # Executive assistant (Telegram)
 │   ├── instagram-automation.json # Instagram comments & DMs
-│   ├── calendar-tool-workflow.json # Sofia's calendar sub-workflow
 │   ├── appointment-booking.json  # Interactive appointment scheduling
 │   └── nps-survey.json           # NPS survey with Google Review routing
 ├── prompts/                 # Agent system prompts (markdown)
@@ -103,7 +102,6 @@ Trigger → Message Handling → AI Agent Node → Response Processing → Outpu
          video/etc)          - Window Buffer Memory
                              - Vector Store Tool (RAG)
                              - Qdrant + OpenAI Embeddings
-                             - Workflow Tools (Calendar, etc.)
 ```
 
 ### Memory Keys (Session Isolation)
@@ -114,18 +112,11 @@ Trigger → Message Handling → AI Agent Node → Response Processing → Outpu
 
 ### Handoff Detection Pattern
 Sofia uses embedded tags in AI responses:
+- `[AGENDAR_CONSULTA]` → Lead ready to schedule
 - `[TRANSFERIR_HUMANO]` → Immediate human transfer needed
 - `[DADOS_LEAD]...[/DADOS_LEAD]` → Structured lead data block
 
 Response processing node parses these tags and routes accordingly.
-
-### Calendar Integration (Sofia)
-Sofia has direct Google Calendar access via `toolWorkflow` nodes:
-- `check_calendar_availability` → Lists available appointment slots
-- `book_appointment` → Creates calendar events directly
-
-This allows Sofia to schedule consultations conversationally without human handoff.
-The calendar sub-workflow is in `workflows/calendar-tool-workflow.json`.
 
 ---
 
