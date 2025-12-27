@@ -27,7 +27,7 @@
       "type": "n8n-nodes-base.code",
       "position": [420, 340],
       "parameters": {
-        "jsCode": "// Normalize Evolution API payload for booking flow\nconst webhookData = $input.first().json.body || $input.first().json;\nconst data = webhookData.data || webhookData;\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace(/^\\+/, '');\n\n// Extract message content (text or button response)\nlet messageText = '';\nlet buttonId = null;\nlet listId = null;\n\nif (message.conversation) {\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageText = message.extendedTextMessage.text;\n} else if (message.buttonsResponseMessage) {\n  buttonId = message.buttonsResponseMessage.selectedButtonId;\n  messageText = message.buttonsResponseMessage.selectedDisplayText;\n} else if (message.listResponseMessage) {\n  listId = message.listResponseMessage.singleSelectReply?.selectedRowId;\n  messageText = message.listResponseMessage.title;\n}\n\nreturn {\n  phone: phone,\n  senderName: data.pushName || phone,\n  messageText: messageText,\n  buttonId: buttonId,\n  listId: listId,\n  isButtonResponse: !!buttonId,\n  isListResponse: !!listId,\n  timestamp: new Date().toISOString(),\n  instanceName: webhookData.instance || 'whatsapp-teste'\n};"
+        "jsCode": "// Normalize Evolution API payload for booking flow\nconst webhookData = $input.first().json.body || $input.first().json;\nconst data = webhookData.data || webhookData;\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone number\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace(/^\\+/, '');\n\n// Extract message content (text or button response)\nlet messageText = '';\nlet buttonId = null;\nlet listId = null;\n\nif (message.conversation) {\n  messageText = message.conversation;\n} else if (message.extendedTextMessage?.text) {\n  messageText = message.extendedTextMessage.text;\n} else if (message.buttonsResponseMessage) {\n  buttonId = message.buttonsResponseMessage.selectedButtonId;\n  messageText = message.buttonsResponseMessage.selectedDisplayText;\n} else if (message.listResponseMessage) {\n  listId = message.listResponseMessage.singleSelectReply?.selectedRowId;\n  messageText = message.listResponseMessage.title;\n}\n\nreturn {\n  phone: phone,\n  remoteJid: phone + '@s.whatsapp.net',\n  senderName: data.pushName || phone,\n  messageText: messageText,\n  buttonId: buttonId,\n  listId: listId,\n  isButtonResponse: !!buttonId,\n  isListResponse: !!listId,\n  timestamp: new Date().toISOString(),\n  instanceName: webhookData.instance || 'whatsapp-teste'\n};"
       },
       "typeVersion": 2
     },
@@ -37,10 +37,10 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [620, 340],
       "parameters": {
-        "resource": "chat",
-        "operation": "sendPresence",
+        "resource": "chat-api",
+        "operation": "send-presence",
         "instanceName": "={{ $json.instanceName }}",
-        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "remoteJid": "={{ $json.remoteJid }}",
         "presence": "composing",
         "delay": 2000
       },
@@ -209,7 +209,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1640, 180],
       "parameters": {
-        "jsCode": "// Calculate available appointment slots\nconst events = $input.all().map(i => i.json);\nconst normalized = $('Determine Flow State').first().json;\nconst isMoreDates = normalized.nextAction === 'show_more_dates';\n\n// Working hours configuration\nconst WORKING_HOURS = {\n  start: 9,  // 9 AM\n  end: 18,   // 6 PM\n  slotDuration: 60, // 1 hour appointments\n  breakStart: 12,\n  breakEnd: 14\n};\n\n// Days to skip (0 = Sunday, 6 = Saturday)\nconst SKIP_DAYS = [0]; // Skip Sundays\n\n// Generate all possible slots for next 14 days\nconst now = new Date();\nconst slots = [];\n\nfor (let day = 0; day < 14; day++) {\n  const date = new Date(now);\n  date.setDate(date.getDate() + day);\n  date.setHours(0, 0, 0, 0);\n  \n  // Skip weekends\n  if (SKIP_DAYS.includes(date.getDay())) continue;\n  \n  const dateStr = date.toISOString().split('T')[0];\n  const daySlots = [];\n  \n  for (let hour = WORKING_HOURS.start; hour < WORKING_HOURS.end; hour++) {\n    // Skip lunch break\n    if (hour >= WORKING_HOURS.breakStart && hour < WORKING_HOURS.breakEnd) continue;\n    \n    const slotStart = new Date(date);\n    slotStart.setHours(hour, 0, 0, 0);\n    \n    // Skip past slots\n    if (slotStart < now) continue;\n    \n    const slotEnd = new Date(slotStart);\n    slotEnd.setHours(hour + 1, 0, 0, 0);\n    \n    // Check if slot conflicts with existing events\n    const hasConflict = events.some(event => {\n      const eventStart = new Date(event.start?.dateTime || event.start?.date);\n      const eventEnd = new Date(event.end?.dateTime || event.end?.date);\n      return (slotStart < eventEnd && slotEnd > eventStart);\n    });\n    \n    if (!hasConflict) {\n      daySlots.push({\n        time: `${hour.toString().padStart(2, '0')}:00`,\n        datetime: slotStart.toISOString()\n      });\n    }\n  }\n  \n  if (daySlots.length > 0) {\n    slots.push({\n      date: dateStr,\n      dayName: date.toLocaleDateString('pt-BR', { weekday: 'short' }),\n      dayNumber: date.getDate(),\n      month: date.toLocaleDateString('pt-BR', { month: 'short' }),\n      slots: daySlots\n    });\n  }\n}\n\n// Get dates to show (skip first 3 if showing more)\nconst startIndex = isMoreDates ? 3 : 0;\nconst datesToShow = slots.slice(startIndex, startIndex + 3);\n\nreturn {\n  phone: normalized.phone,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  allSlots: slots,\n  datesToShow: datesToShow,\n  hasMoreDates: slots.length > startIndex + 3\n};"
+        "jsCode": "// Calculate available appointment slots\nconst events = $input.all().map(i => i.json);\nconst normalized = $('Determine Flow State').first().json;\nconst isMoreDates = normalized.nextAction === 'show_more_dates';\n\n// Working hours configuration\nconst WORKING_HOURS = {\n  start: 9,  // 9 AM\n  end: 18,   // 6 PM\n  slotDuration: 60, // 1 hour appointments\n  breakStart: 12,\n  breakEnd: 14\n};\n\n// Days to skip (0 = Sunday, 6 = Saturday)\nconst SKIP_DAYS = [0]; // Skip Sundays\n\n// Generate all possible slots for next 14 days\nconst now = new Date();\nconst slots = [];\n\nfor (let day = 0; day < 14; day++) {\n  const date = new Date(now);\n  date.setDate(date.getDate() + day);\n  date.setHours(0, 0, 0, 0);\n  \n  // Skip weekends\n  if (SKIP_DAYS.includes(date.getDay())) continue;\n  \n  const dateStr = date.toISOString().split('T')[0];\n  const daySlots = [];\n  \n  for (let hour = WORKING_HOURS.start; hour < WORKING_HOURS.end; hour++) {\n    // Skip lunch break\n    if (hour >= WORKING_HOURS.breakStart && hour < WORKING_HOURS.breakEnd) continue;\n    \n    const slotStart = new Date(date);\n    slotStart.setHours(hour, 0, 0, 0);\n    \n    // Skip past slots\n    if (slotStart < now) continue;\n    \n    const slotEnd = new Date(slotStart);\n    slotEnd.setHours(hour + 1, 0, 0, 0);\n    \n    // Check if slot conflicts with existing events\n    const hasConflict = events.some(event => {\n      const eventStart = new Date(event.start?.dateTime || event.start?.date);\n      const eventEnd = new Date(event.end?.dateTime || event.end?.date);\n      return (slotStart < eventEnd && slotEnd > eventStart);\n    });\n    \n    if (!hasConflict) {\n      daySlots.push({\n        time: `${hour.toString().padStart(2, '0')}:00`,\n        datetime: slotStart.toISOString()\n      });\n    }\n  }\n  \n  if (daySlots.length > 0) {\n    slots.push({\n      date: dateStr,\n      dayName: date.toLocaleDateString('pt-BR', { weekday: 'short' }),\n      dayNumber: date.getDate(),\n      month: date.toLocaleDateString('pt-BR', { month: 'short' }),\n      slots: daySlots\n    });\n  }\n}\n\n// Get dates to show (skip first 3 if showing more)\nconst startIndex = isMoreDates ? 3 : 0;\nconst datesToShow = slots.slice(startIndex, startIndex + 3);\n\nreturn {\n  phone: normalized.phone,\n  remoteJid: normalized.remoteJid,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  allSlots: slots,\n  datesToShow: datesToShow,\n  hasMoreDates: slots.length > startIndex + 3\n};"
       },
       "typeVersion": 2
     },
@@ -219,14 +219,32 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [1860, 180],
       "parameters": {
-        "resource": "message",
-        "operation": "sendButtons",
+        "resource": "messages-api",
+        "operation": "send-buttons",
         "instanceName": "={{ $json.instanceName }}",
-        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "remoteJid": "={{ $json.remoteJid }}",
         "title": "Agendamento de Consulta",
         "description": "Escolha uma data para sua consulta com Dr. Guilherme Leitner:",
-        "buttons": "={{ [\n  ...($json.datesToShow || []).map((d, i) => ({\n    buttonId: 'date_' + d.date,\n    buttonText: { displayText: d.dayName + ' ' + d.dayNumber + '/' + d.month }\n  })),\n  $json.hasMoreDates ? {\n    buttonId: 'more_dates',\n    buttonText: { displayText: 'Ver mais datas →' }\n  } : null\n].filter(Boolean) }}",
-        "footer": "Leitner Saúde - Consulta ~1 hora"
+        "footer": "Leitner Saúde - Consulta ~1 hora",
+        "buttons": {
+          "values": [
+            {
+              "type": "reply",
+              "displayText": "={{ $json.datesToShow[0] ? $json.datesToShow[0].dayName + ' ' + $json.datesToShow[0].dayNumber + '/' + $json.datesToShow[0].month : '' }}",
+              "id": "={{ 'date_' + ($json.datesToShow[0]?.date || '') }}"
+            },
+            {
+              "type": "reply",
+              "displayText": "={{ $json.datesToShow[1] ? $json.datesToShow[1].dayName + ' ' + $json.datesToShow[1].dayNumber + '/' + $json.datesToShow[1].month : '' }}",
+              "id": "={{ 'date_' + ($json.datesToShow[1]?.date || '') }}"
+            },
+            {
+              "type": "reply",
+              "displayText": "={{ $json.hasMoreDates ? 'Ver mais datas →' : ($json.datesToShow[2] ? $json.datesToShow[2].dayName + ' ' + $json.datesToShow[2].dayNumber + '/' + $json.datesToShow[2].month : '') }}",
+              "id": "={{ $json.hasMoreDates ? 'more_dates' : ('date_' + ($json.datesToShow[2]?.date || '')) }}"
+            }
+          ]
+        }
       },
       "credentials": {
         "evolutionApi": {
@@ -256,11 +274,11 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "PHONE": "={{ $json.phone }}",
+            "PHONE": "={{ $('Calculate Available Slots').first().json.phone }}",
             "STATE": "awaiting_date",
             "SELECTED_DATE": "",
             "SELECTED_TIME": "",
-            "AVAILABLE_SLOTS": "={{ JSON.stringify($json.allSlots) }}",
+            "AVAILABLE_SLOTS": "={{ JSON.stringify($('Calculate Available Slots').first().json.allSlots) }}",
             "CREATED_AT": "={{ $now.toISO() }}",
             "EXPIRES_AT": "={{ $now.plus({ hours: 1 }).toISO() }}"
           },
@@ -282,7 +300,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1440, 340],
       "parameters": {
-        "jsCode": "// Extract selected date from button response\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\n// Get date from button ID (format: date_2024-12-30)\nconst buttonId = normalized.buttonId || normalized.listId || '';\nconst selectedDate = buttonId.replace('date_', '');\n\n// Parse available slots from session\nlet allSlots = [];\ntry {\n  allSlots = JSON.parse(session.AVAILABLE_SLOTS || '[]');\n} catch (e) {\n  allSlots = [];\n}\n\n// Find slots for selected date\nconst dateSlots = allSlots.find(d => d.date === selectedDate);\n\nreturn {\n  phone: normalized.phone,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  selectedDate: selectedDate,\n  selectedDateFormatted: dateSlots ? `${dateSlots.dayName} ${dateSlots.dayNumber}/${dateSlots.month}` : selectedDate,\n  availableTimeSlots: dateSlots?.slots || [],\n  allSlots: allSlots\n};"
+        "jsCode": "// Extract selected date from button response\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\n// Get date from button ID (format: date_2024-12-30)\nconst buttonId = normalized.buttonId || normalized.listId || '';\nconst selectedDate = buttonId.replace('date_', '');\n\n// Parse available slots from session\nlet allSlots = [];\ntry {\n  allSlots = JSON.parse(session.AVAILABLE_SLOTS || '[]');\n} catch (e) {\n  allSlots = [];\n}\n\n// Find slots for selected date\nconst dateSlots = allSlots.find(d => d.date === selectedDate);\n\nreturn {\n  phone: normalized.phone,\n  remoteJid: normalized.remoteJid,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  selectedDate: selectedDate,\n  selectedDateFormatted: dateSlots ? `${dateSlots.dayName} ${dateSlots.dayNumber}/${dateSlots.month}` : selectedDate,\n  availableTimeSlots: dateSlots?.slots || [],\n  allSlots: allSlots\n};"
       },
       "typeVersion": 2
     },
@@ -292,15 +310,30 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [1660, 340],
       "parameters": {
-        "resource": "message",
-        "operation": "sendList",
+        "resource": "messages-api",
+        "operation": "send-list",
         "instanceName": "={{ $json.instanceName }}",
-        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "remoteJid": "={{ $json.remoteJid }}",
         "title": "Horários Disponíveis",
         "description": "={{ 'Escolha um horário para ' + $json.selectedDateFormatted + ':' }}",
         "buttonText": "Ver horários",
-        "sections": "={{ [{\n  title: 'Manhã',\n  rows: ($json.availableTimeSlots || []).filter(s => parseInt(s.time) < 12).map(s => ({\n    rowId: 'time_' + s.datetime,\n    title: s.time,\n    description: 'Consulta com Dr. Guilherme'\n  }))\n}, {\n  title: 'Tarde',\n  rows: ($json.availableTimeSlots || []).filter(s => parseInt(s.time) >= 14).map(s => ({\n    rowId: 'time_' + s.datetime,\n    title: s.time,\n    description: 'Consulta com Dr. Guilherme'\n  }))\n}].filter(s => s.rows.length > 0) }}",
-        "footer": "Leitner Saúde"
+        "footerText": "Leitner Saúde",
+        "sections": {
+          "values": [
+            {
+              "title": "Manhã",
+              "rows": {
+                "values": "={{ ($json.availableTimeSlots || []).filter(s => parseInt(s.time) < 12).map(s => ({ title: s.time, description: 'Consulta com Dr. Guilherme', rowId: 'time_' + s.datetime })) }}"
+              }
+            },
+            {
+              "title": "Tarde",
+              "rows": {
+                "values": "={{ ($json.availableTimeSlots || []).filter(s => parseInt(s.time) >= 14).map(s => ({ title: s.time, description: 'Consulta com Dr. Guilherme', rowId: 'time_' + s.datetime })) }}"
+              }
+            }
+          ]
+        }
       },
       "credentials": {
         "evolutionApi": {
@@ -331,7 +364,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "STATE": "awaiting_time",
-            "SELECTED_DATE": "={{ $json.selectedDate }}"
+            "SELECTED_DATE": "={{ $('Extract Selected Date').first().json.selectedDate }}"
           },
           "matchingColumns": ["PHONE"]
         },
@@ -351,7 +384,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1440, 500],
       "parameters": {
-        "jsCode": "// Extract selected time from list response\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\n// Get datetime from list ID (format: time_2024-12-30T10:00:00.000Z)\nconst listId = normalized.listId || '';\nconst selectedDatetime = listId.replace('time_', '');\nconst selectedDate = new Date(selectedDatetime);\n\n// Format for display\nconst dateFormatted = selectedDate.toLocaleDateString('pt-BR', {\n  weekday: 'long',\n  day: 'numeric',\n  month: 'long'\n});\nconst timeFormatted = selectedDate.toLocaleTimeString('pt-BR', {\n  hour: '2-digit',\n  minute: '2-digit'\n});\n\nreturn {\n  phone: normalized.phone,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  selectedDatetime: selectedDatetime,\n  selectedDate: session.SELECTED_DATE,\n  dateFormatted: dateFormatted,\n  timeFormatted: timeFormatted,\n  confirmationText: `${dateFormatted} às ${timeFormatted}`\n};"
+        "jsCode": "// Extract selected time from list response\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\n// Get datetime from list ID (format: time_2024-12-30T10:00:00.000Z)\nconst listId = normalized.listId || '';\nconst selectedDatetime = listId.replace('time_', '');\nconst selectedDate = new Date(selectedDatetime);\n\n// Format for display\nconst dateFormatted = selectedDate.toLocaleDateString('pt-BR', {\n  weekday: 'long',\n  day: 'numeric',\n  month: 'long'\n});\nconst timeFormatted = selectedDate.toLocaleTimeString('pt-BR', {\n  hour: '2-digit',\n  minute: '2-digit'\n});\n\nreturn {\n  phone: normalized.phone,\n  remoteJid: normalized.remoteJid,\n  senderName: normalized.senderName,\n  instanceName: normalized.instanceName,\n  selectedDatetime: selectedDatetime,\n  selectedDate: session.SELECTED_DATE,\n  dateFormatted: dateFormatted,\n  timeFormatted: timeFormatted,\n  confirmationText: `${dateFormatted} às ${timeFormatted}`\n};"
       },
       "typeVersion": 2
     },
@@ -361,23 +394,27 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [1660, 500],
       "parameters": {
-        "resource": "message",
-        "operation": "sendButtons",
+        "resource": "messages-api",
+        "operation": "send-buttons",
         "instanceName": "={{ $json.instanceName }}",
-        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "remoteJid": "={{ $json.remoteJid }}",
         "title": "Confirmar Agendamento",
         "description": "={{ 'Consulta com Dr. Guilherme Leitner\\n\\n📅 ' + $json.dateFormatted + '\\n🕐 ' + $json.timeFormatted + '\\n📍 Clínica Leitner Saúde\\n⏱️ Duração: ~1 hora\\n\\nInclui:\\n• Avaliação médica completa\\n• Exame de bioimpedância\\n• Plano alimentar personalizado\\n\\nConfirma este horário?' }}",
-        "buttons": [
-          {
-            "buttonId": "confirm",
-            "buttonText": { "displayText": "✓ Confirmar" }
-          },
-          {
-            "buttonId": "change",
-            "buttonText": { "displayText": "Alterar horário" }
-          }
-        ],
-        "footer": "Leitner Saúde"
+        "footer": "Leitner Saúde",
+        "buttons": {
+          "values": [
+            {
+              "type": "reply",
+              "displayText": "✓ Confirmar",
+              "id": "confirm"
+            },
+            {
+              "type": "reply",
+              "displayText": "Alterar horário",
+              "id": "change"
+            }
+          ]
+        }
       },
       "credentials": {
         "evolutionApi": {
@@ -408,7 +445,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "STATE": "awaiting_confirmation",
-            "SELECTED_TIME": "={{ $json.selectedDatetime }}"
+            "SELECTED_TIME": "={{ $('Extract Selected Time').first().json.selectedDatetime }}"
           },
           "matchingColumns": ["PHONE"]
         },
@@ -428,7 +465,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1440, 660],
       "parameters": {
-        "jsCode": "// Prepare Google Calendar event data\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\nconst startTime = new Date(session.SELECTED_TIME);\nconst endTime = new Date(startTime);\nendTime.setHours(endTime.getHours() + 1);\n\n// Lookup patient/lead data\nconst patientName = normalized.senderName || 'Paciente';\n\nreturn {\n  phone: normalized.phone,\n  senderName: patientName,\n  instanceName: normalized.instanceName,\n  eventSummary: `Consulta - ${patientName}`,\n  eventDescription: `Consulta médica com Dr. Guilherme Leitner\\n\\nPaciente: ${patientName}\\nTelefone: ${normalized.phone}\\n\\nAgendado via WhatsApp`,\n  startTime: startTime.toISOString(),\n  endTime: endTime.toISOString(),\n  dateFormatted: startTime.toLocaleDateString('pt-BR', {\n    weekday: 'long',\n    day: 'numeric',\n    month: 'long',\n    year: 'numeric'\n  }),\n  timeFormatted: startTime.toLocaleTimeString('pt-BR', {\n    hour: '2-digit',\n    minute: '2-digit'\n  })\n};"
+        "jsCode": "// Prepare Google Calendar event data\nconst normalized = $('Determine Flow State').first().json;\nconst session = $('Lookup Booking Session').first().json;\n\nconst startTime = new Date(session.SELECTED_TIME);\nconst endTime = new Date(startTime);\nendTime.setHours(endTime.getHours() + 1);\n\n// Lookup patient/lead data\nconst patientName = normalized.senderName || 'Paciente';\n\nreturn {\n  phone: normalized.phone,\n  remoteJid: normalized.remoteJid,\n  senderName: patientName,\n  instanceName: normalized.instanceName,\n  eventSummary: `Consulta - ${patientName}`,\n  eventDescription: `Consulta médica com Dr. Guilherme Leitner\\n\\nPaciente: ${patientName}\\nTelefone: ${normalized.phone}\\n\\nAgendado via WhatsApp`,\n  startTime: startTime.toISOString(),\n  endTime: endTime.toISOString(),\n  dateFormatted: startTime.toLocaleDateString('pt-BR', {\n    weekday: 'long',\n    day: 'numeric',\n    month: 'long',\n    year: 'numeric'\n  }),\n  timeFormatted: startTime.toLocaleTimeString('pt-BR', {\n    hour: '2-digit',\n    minute: '2-digit'\n  })\n};"
       },
       "typeVersion": 2
     },
@@ -446,15 +483,7 @@
           "summary": "={{ $json.eventSummary }}",
           "description": "={{ $json.eventDescription }}",
           "location": "Clínica Leitner Saúde",
-          "sendUpdates": "all",
-          "reminders": {
-            "reminderValues": {
-              "reminders": [
-                { "method": "popup", "minutes": 60 },
-                { "method": "popup", "minutes": 1440 }
-              ]
-            }
-          }
+          "sendUpdates": "all"
         }
       },
       "credentials": {
@@ -471,11 +500,11 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [1880, 660],
       "parameters": {
-        "resource": "message",
-        "operation": "sendText",
+        "resource": "messages-api",
+        "operation": "send-text",
         "instanceName": "={{ $('Prepare Event Data').first().json.instanceName }}",
-        "remoteJid": "={{ $('Prepare Event Data').first().json.phone }}@s.whatsapp.net",
-        "message": "={{ '✅ *Consulta Agendada com Sucesso!*\\n\\n📅 ' + $('Prepare Event Data').first().json.dateFormatted + '\\n🕐 ' + $('Prepare Event Data').first().json.timeFormatted + '\\n📍 Clínica Leitner Saúde\\n👨‍⚕️ Dr. Guilherme Leitner\\n\\n*O que levar:*\\n• Documento com foto\\n• Exames recentes (se tiver)\\n• Lista de medicamentos em uso\\n\\n*Importante:*\\n• Chegar 10 minutos antes\\n• Jejum não é necessário\\n\\nVocê receberá lembretes 24h e 2h antes da consulta.\\n\\nQualquer dúvida, estamos à disposição!' }}"
+        "remoteJid": "={{ $('Prepare Event Data').first().json.remoteJid }}",
+        "messageText": "={{ '✅ *Consulta Agendada com Sucesso!*\\n\\n📅 ' + $('Prepare Event Data').first().json.dateFormatted + '\\n🕐 ' + $('Prepare Event Data').first().json.timeFormatted + '\\n📍 Clínica Leitner Saúde\\n👨‍⚕️ Dr. Guilherme Leitner\\n\\n*O que levar:*\\n• Documento com foto\\n• Exames recentes (se tiver)\\n• Lista de medicamentos em uso\\n\\n*Importante:*\\n• Chegar 10 minutos antes\\n• Jejum não é necessário\\n\\nVocê receberá lembretes 24h e 2h antes da consulta.\\n\\nQualquer dúvida, estamos à disposição!' }}"
       },
       "credentials": {
         "evolutionApi": {
@@ -526,11 +555,11 @@
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "position": [2100, 780],
       "parameters": {
-        "resource": "message",
-        "operation": "sendText",
+        "resource": "messages-api",
+        "operation": "send-text",
         "instanceName": "={{ $('Prepare Event Data').first().json.instanceName }}",
         "remoteJid": "5511999986838@s.whatsapp.net",
-        "message": "={{ '*NOVO AGENDAMENTO*\\n\\n👤 ' + $('Prepare Event Data').first().json.senderName + '\\n📱 ' + $('Prepare Event Data').first().json.phone + '\\n📅 ' + $('Prepare Event Data').first().json.dateFormatted + '\\n🕐 ' + $('Prepare Event Data').first().json.timeFormatted + '\\n\\nAgendado automaticamente via WhatsApp.' }}"
+        "messageText": "={{ '*NOVO AGENDAMENTO*\\n\\n👤 ' + $('Prepare Event Data').first().json.senderName + '\\n📱 ' + $('Prepare Event Data').first().json.phone + '\\n📅 ' + $('Prepare Event Data').first().json.dateFormatted + '\\n🕐 ' + $('Prepare Event Data').first().json.timeFormatted + '\\n\\nAgendado automaticamente via WhatsApp.' }}"
       },
       "credentials": {
         "evolutionApi": {
@@ -563,7 +592,7 @@
             "PHONE": "={{ $('Prepare Event Data').first().json.phone }}",
             "NAME": "={{ $('Prepare Event Data').first().json.senderName }}",
             "APPOINTMENT_DATE": "={{ $('Prepare Event Data').first().json.startTime }}",
-            "CALENDAR_EVENT_ID": "={{ $json.id }}",
+            "CALENDAR_EVENT_ID": "={{ $('Create Calendar Event').first().json.id }}",
             "STATUS": "scheduled",
             "CREATED_AT": "={{ $now.toISO() }}",
             "SOURCE": "whatsapp_bot"
@@ -587,8 +616,8 @@
       "parameters": {
         "color": 4,
         "width": 680,
-        "height": 240,
-        "content": "## Interactive Appointment Booking\n\nThis workflow handles interactive appointment booking via WhatsApp buttons and lists.\n\n### Flow:\n1. User triggers booking (from Sofia or keyword)\n2. Fetch Google Calendar availability\n3. Send date buttons (next 3 available dates)\n4. User selects date → Send time list\n5. User selects time → Send confirmation\n6. User confirms → Create calendar event\n7. Send confirmation + Notify Beth\n\n### Required Sheets Tabs:\n- `BookingSessions` - Tracks booking state per phone\n- `Appointments` - Logs completed bookings\n\n### Required Credentials:\n- `evolution-api-node-creds` - Evolution API community node\n- `google-calendar-creds` - Google Calendar OAuth2\n- `google-sheets-creds` - Google Sheets OAuth2"
+        "height": 260,
+        "content": "## Interactive Appointment Booking\n\nThis workflow handles interactive appointment booking via WhatsApp buttons and lists.\n\n### Evolution API Node Configuration:\n- **Resource**: `messages-api` for sending messages, `chat-api` for presence\n- **Operations**: `send-text`, `send-buttons`, `send-list`, `send-presence`\n- **Button type**: `reply` with `displayText` and `id`\n- **List sections**: `title` and `rows` array with `title`, `description`, `rowId`\n\n### Required Sheets Tabs:\n- `BookingSessions` - Tracks booking state per phone\n- `Appointments` - Logs completed bookings\n\n### Required Credentials:\n- `evolution-api-node-creds` - Evolution API community node (n8n-nodes-evolution-api)\n- `google-calendar-creds` - Google Calendar OAuth2\n- `google-sheets-creds` - Google Sheets OAuth2"
       },
       "typeVersion": 1
     }
