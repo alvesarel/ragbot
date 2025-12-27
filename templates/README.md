@@ -138,3 +138,57 @@ All leads for remarketing and qualification tracking.
 **Important**: All phone numbers are stored WITHOUT the + prefix (e.g., `5511999998888`).
 - Evolution API sends numbers WITH + prefix
 - Workflow normalizes: strips + for lookups, adds + for sending
+
+---
+
+## Interactive Booking Sheets
+
+### BookingSessions Sheet
+Tracks multi-step booking sessions for interactive appointment scheduling.
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| PHONE | User phone number | 5511999998888 |
+| STATE | Current booking state | awaiting_date/awaiting_time/awaiting_confirmation/completed |
+| SELECTED_DATE | Selected appointment date | 2024-12-30 |
+| SELECTED_TIME | Selected appointment datetime (ISO) | 2024-12-30T14:00:00.000Z |
+| AVAILABLE_SLOTS | JSON array of available slots | [{"date":"2024-12-30",...}] |
+| CREATED_AT | Session creation timestamp | 2024-12-27T10:00:00.000Z |
+| EXPIRES_AT | Session expiry (1 hour) | 2024-12-27T11:00:00.000Z |
+| COMPLETED_AT | When booking was completed | 2024-12-27T10:15:00.000Z |
+
+### Appointments Sheet
+Logs all completed appointment bookings.
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| PHONE | Patient phone number | 5511999998888 |
+| NAME | Patient name | Maria Silva |
+| APPOINTMENT_DATE | Appointment datetime (ISO) | 2024-12-30T14:00:00.000Z |
+| CALENDAR_EVENT_ID | Google Calendar event ID | abc123xyz |
+| STATUS | Appointment status | scheduled/completed/cancelled/no_show |
+| CREATED_AT | Booking creation timestamp | 2024-12-27T10:15:00.000Z |
+| SOURCE | Booking source | whatsapp_bot/manual |
+
+---
+
+## NPS Survey Sheets
+
+### NPSSurveys Sheet
+Tracks NPS survey sends and responses.
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| PHONE | Patient phone number | 5511999998888 |
+| NAME | Patient name | Maria Silva |
+| SENT_AT | When survey was sent | 2024-12-01T10:00:00.000Z |
+| SCORE | NPS score (0-10) | 9 |
+| CATEGORY | NPS category | promoter/passive/detractor |
+| RESPONDED_AT | When patient responded | 2024-12-01T14:30:00.000Z |
+| REVIEW_SENT | Whether Google Review link was sent | true/false |
+| FOLLOW_UP_NEEDED | Whether team should follow up (detractors) | true/false |
+
+**NPS Categories:**
+- **Promoter** (9-10): Loyal enthusiasts, send Google Review request
+- **Passive** (7-8): Satisfied but vulnerable to competition
+- **Detractor** (0-6): Unhappy, need team follow-up

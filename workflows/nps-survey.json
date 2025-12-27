@@ -1,0 +1,802 @@
+{
+  "name": "NPS Survey with Google Review Routing",
+  "meta": {
+    "instanceId": "nps-survey",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Monthly NPS Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [220, 340],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 1 * *"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.2,
+      "notes": "Runs on 1st of each month at 10 AM"
+    },
+    {
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [220, 480],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "id": "merge-triggers",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "position": [420, 400],
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "typeVersion": 2.1
+    },
+    {
+      "id": "fetch-patients",
+      "name": "Fetch All Patients",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [620, 400],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AllPatients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "fetch-nps-history",
+      "name": "Fetch NPS History",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [820, 400],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPSSurveys",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "filter-eligible",
+      "name": "Filter Eligible Patients",
+      "type": "n8n-nodes-base.code",
+      "position": [1020, 400],
+      "parameters": {
+        "jsCode": "// Filter patients eligible for NPS survey\nconst patients = $('Fetch All Patients').all().map(i => i.json);\nconst npsHistory = $('Fetch NPS History').all().map(i => i.json);\n\nconst thirtyDaysAgo = new Date();\nthirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);\n\nconst eligiblePatients = [];\n\nfor (const patient of patients) {\n  // Skip if no phone\n  if (!patient.PHONE) continue;\n  \n  // Skip if not active or completed treatment\n  const status = (patient.STATUS || '').toLowerCase();\n  if (!['active', 'completed', 'ativo', 'concluido'].includes(status)) continue;\n  \n  // Check if surveyed in last 30 days\n  const recentSurvey = npsHistory.find(s => \n    s.PHONE === patient.PHONE && \n    new Date(s.SENT_AT) > thirtyDaysAgo\n  );\n  \n  if (recentSurvey) continue;\n  \n  eligiblePatients.push({\n    phone: patient.PHONE,\n    name: patient.NAME || 'Paciente',\n    email: patient.EMAIL || '',\n    status: patient.STATUS,\n    treatmentType: patient.TREATMENT_TYPE || '',\n    lastSurvey: npsHistory.find(s => s.PHONE === patient.PHONE)?.SENT_AT || null\n  });\n}\n\n// Limit to 50 per batch to avoid rate limits\nreturn eligiblePatients.slice(0, 50);"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "has-eligible",
+      "name": "Has Eligible Patients?",
+      "type": "n8n-nodes-base.if",
+      "position": [1220, 400],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-patients",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "split-batches",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [1420, 320],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "typeVersion": 3
+    },
+    {
+      "id": "delay-between",
+      "name": "Delay Between Messages",
+      "type": "n8n-nodes-base.wait",
+      "position": [1620, 320],
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "send-typing",
+      "name": "Send Typing Status",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1820, 320],
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendPresence",
+        "instanceName": "whatsapp-teste",
+        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "presence": "composing",
+        "delay": 2000
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-nps-survey",
+      "name": "Send NPS Survey",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [2040, 320],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendList",
+        "instanceName": "whatsapp-teste",
+        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "title": "Pesquisa de Satisfação",
+        "description": "={{ 'Olá ' + $json.name + '!\\n\\nSua opinião é muito importante para nós. Em uma escala de 0 a 10, o quanto você recomendaria a Leitner Saúde para amigos ou familiares?' }}",
+        "buttonText": "Responder pesquisa",
+        "sections": [
+          {
+            "title": "Muito provável (9-10)",
+            "rows": [
+              { "rowId": "nps_10", "title": "10 - Com certeza recomendaria", "description": "Experiência excelente" },
+              { "rowId": "nps_9", "title": "9 - Muito provavelmente", "description": "Experiência ótima" }
+            ]
+          },
+          {
+            "title": "Provável (7-8)",
+            "rows": [
+              { "rowId": "nps_8", "title": "8 - Provavelmente", "description": "Experiência boa" },
+              { "rowId": "nps_7", "title": "7 - Talvez recomendaria", "description": "Experiência satisfatória" }
+            ]
+          },
+          {
+            "title": "Pouco provável (4-6)",
+            "rows": [
+              { "rowId": "nps_6", "title": "6 - Pouco provável", "description": "" },
+              { "rowId": "nps_5", "title": "5 - Neutro", "description": "" },
+              { "rowId": "nps_4", "title": "4 - Improvável", "description": "" }
+            ]
+          },
+          {
+            "title": "Improvável (0-3)",
+            "rows": [
+              { "rowId": "nps_3", "title": "3 - Muito improvável", "description": "" },
+              { "rowId": "nps_2", "title": "2 - Não recomendaria", "description": "" },
+              { "rowId": "nps_1", "title": "1 - Definitivamente não", "description": "" },
+              { "rowId": "nps_0", "title": "0 - Jamais recomendaria", "description": "" }
+            ]
+          }
+        ],
+        "footer": "Leitner Saúde - Sua opinião importa"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "log-survey-sent",
+      "name": "Log Survey Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2260, 320],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPSSurveys",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PHONE": "={{ $('Split Into Batches').first().json.phone }}",
+            "NAME": "={{ $('Split Into Batches').first().json.name }}",
+            "SENT_AT": "={{ $now.toISO() }}",
+            "SCORE": "",
+            "CATEGORY": "",
+            "RESPONDED_AT": "",
+            "REVIEW_SENT": "false"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "loop-back",
+      "name": "Loop Back",
+      "type": "n8n-nodes-base.noOp",
+      "position": [2460, 320],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "id": "response-webhook",
+      "name": "NPS Response Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [220, 700],
+      "webhookId": "nps-response-webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nps-response",
+        "options": {
+          "responseMode": "onReceived",
+          "responseCode": 200
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "parse-response",
+      "name": "Parse NPS Response",
+      "type": "n8n-nodes-base.code",
+      "position": [440, 700],
+      "parameters": {
+        "jsCode": "// Parse NPS response from Evolution API webhook\nconst webhookData = $input.first().json.body || $input.first().json;\nconst data = webhookData.data || webhookData;\nconst key = data.key || {};\nconst message = data.message || {};\n\n// Extract phone\nconst remoteJid = key.remoteJid || '';\nconst phone = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@c.us', '')\n  .replace(/^\\+/, '');\n\n// Check if it's a list response for NPS\nlet score = null;\nlet isNpsResponse = false;\n\nif (message.listResponseMessage) {\n  const rowId = message.listResponseMessage.singleSelectReply?.selectedRowId || '';\n  \n  if (rowId.startsWith('nps_')) {\n    isNpsResponse = true;\n    score = parseInt(rowId.replace('nps_', ''));\n  }\n}\n\n// Classify NPS\nlet category = null;\nif (score !== null) {\n  if (score >= 9) category = 'promoter';\n  else if (score >= 7) category = 'passive';\n  else category = 'detractor';\n}\n\nreturn {\n  phone: phone,\n  senderName: data.pushName || phone,\n  score: score,\n  category: category,\n  isNpsResponse: isNpsResponse,\n  timestamp: new Date().toISOString(),\n  instanceName: webhookData.instance || 'whatsapp-teste'\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "is-nps-response",
+      "name": "Is NPS Response?",
+      "type": "n8n-nodes-base.if",
+      "position": [660, 700],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-nps",
+              "leftValue": "={{ $json.isNpsResponse }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "send-typing-response",
+      "name": "Send Typing Status",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [880, 620],
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendPresence",
+        "instanceName": "={{ $json.instanceName }}",
+        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "presence": "composing",
+        "delay": 1500
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "route-category",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "position": [1100, 620],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Promoter",
+              "conditions": {
+                "options": { "version": 2, "caseSensitive": true },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": { "type": "string", "operation": "equals" },
+                    "leftValue": "={{ $('Parse NPS Response').first().json.category }}",
+                    "rightValue": "promoter"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Passive",
+              "conditions": {
+                "options": { "version": 2, "caseSensitive": true },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": { "type": "string", "operation": "equals" },
+                    "leftValue": "={{ $('Parse NPS Response').first().json.category }}",
+                    "rightValue": "passive"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Detractor",
+              "conditions": {
+                "options": { "version": 2, "caseSensitive": true },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": { "type": "string", "operation": "equals" },
+                    "leftValue": "={{ $('Parse NPS Response').first().json.category }}",
+                    "rightValue": "detractor"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.2
+    },
+    {
+      "id": "send-promoter-thanks",
+      "name": "Thank Promoter",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1340, 480],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendText",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "={{ $('Parse NPS Response').first().json.phone }}@s.whatsapp.net",
+        "message": "={{ 'Muito obrigado pela sua avaliação! 🙏\\n\\nFicamos muito felizes em saber que você teve uma experiência positiva com a Leitner Saúde.\\n\\nSua opinião nos motiva a continuar oferecendo o melhor atendimento possível.' }}"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "delay-review-request",
+      "name": "Delay Before Review",
+      "type": "n8n-nodes-base.wait",
+      "position": [1560, 480],
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "send-review-request",
+      "name": "Send Google Review Request",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1780, 480],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendButtons",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "={{ $('Parse NPS Response').first().json.phone }}@s.whatsapp.net",
+        "title": "Avalie-nos no Google",
+        "description": "Você poderia nos ajudar compartilhando sua experiência no Google? Sua avaliação ajuda outras pessoas a conhecerem nosso trabalho e leva menos de 1 minuto.",
+        "buttons": [
+          {
+            "buttonId": "review_google",
+            "buttonText": { "displayText": "⭐ Avaliar no Google" }
+          },
+          {
+            "buttonId": "review_later",
+            "buttonText": { "displayText": "Talvez depois" }
+          }
+        ],
+        "footer": "Obrigado pelo seu tempo!"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-review-link",
+      "name": "Send Review Link",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [2000, 480],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendText",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "={{ $('Parse NPS Response').first().json.phone }}@s.whatsapp.net",
+        "message": "Clique aqui para avaliar: https://g.page/r/YOUR_GOOGLE_REVIEW_LINK/review\n\nAgradecemos muito! ❤️"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1,
+      "notes": "Replace YOUR_GOOGLE_REVIEW_LINK with actual Google Business review link"
+    },
+    {
+      "id": "send-passive-thanks",
+      "name": "Thank Passive",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1340, 620],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendText",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "={{ $('Parse NPS Response').first().json.phone }}@s.whatsapp.net",
+        "message": "Obrigado pela sua avaliação! 🙏\n\nSua opinião é muito importante para nós. Se houver algo que possamos melhorar, estamos sempre abertos a ouvir.\n\nAgradecemos por fazer parte da Leitner Saúde!"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "send-detractor-response",
+      "name": "Respond to Detractor",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1340, 760],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendText",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "={{ $('Parse NPS Response').first().json.phone }}@s.whatsapp.net",
+        "message": "Obrigado por compartilhar sua opinião. 🙏\n\nLamentamos que sua experiência não tenha sido a melhor. Sua satisfação é nossa prioridade e gostaríamos muito de entender melhor o que aconteceu para podermos melhorar.\n\nBeth, nossa secretária, entrará em contato para ouvir você. Podemos agendar uma conversa?"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "notify-team-detractor",
+      "name": "Notify Team (Detractor)",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "position": [1560, 760],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendText",
+        "instanceName": "={{ $('Parse NPS Response').first().json.instanceName }}",
+        "remoteJid": "5511999986838@s.whatsapp.net",
+        "message": "={{ '*⚠️ ALERTA NPS - DETRACTOR*\\n\\n👤 ' + $('Parse NPS Response').first().json.senderName + '\\n📱 ' + $('Parse NPS Response').first().json.phone + '\\n📊 Score: ' + $('Parse NPS Response').first().json.score + '/10\\n\\n*Ação necessária:* Entrar em contato para entender a insatisfação e tentar recuperar o relacionamento.\\n\\nPaciente já foi informado que Beth entrará em contato.' }}"
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api-node-creds",
+          "name": "Evolution API Node"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "update-survey-promoter",
+      "name": "Update Survey (Promoter)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2220, 480],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPSSurveys",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SCORE": "={{ $('Parse NPS Response').first().json.score }}",
+            "CATEGORY": "promoter",
+            "RESPONDED_AT": "={{ $now.toISO() }}",
+            "REVIEW_SENT": "true"
+          },
+          "matchingColumns": ["PHONE"]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "update-survey-passive",
+      "name": "Update Survey (Passive)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1560, 620],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPSSurveys",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SCORE": "={{ $('Parse NPS Response').first().json.score }}",
+            "CATEGORY": "passive",
+            "RESPONDED_AT": "={{ $now.toISO() }}",
+            "REVIEW_SENT": "false"
+          },
+          "matchingColumns": ["PHONE"]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "update-survey-detractor",
+      "name": "Update Survey (Detractor)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1780, 760],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1y7dqc3Pelbk2ltn9Rm_iYmziw5wLddtiRtbg0vyBk70",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPSSurveys",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SCORE": "={{ $('Parse NPS Response').first().json.score }}",
+            "CATEGORY": "detractor",
+            "RESPONDED_AT": "={{ $now.toISO() }}",
+            "REVIEW_SENT": "false",
+            "FOLLOW_UP_NEEDED": "true"
+          },
+          "matchingColumns": ["PHONE"]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4.5
+    },
+    {
+      "id": "sticky-note-sender",
+      "name": "Survey Sender Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 180],
+      "parameters": {
+        "color": 4,
+        "width": 580,
+        "height": 280,
+        "content": "## NPS Survey Sender\n\nSends NPS surveys to eligible patients monthly.\n\n### Eligibility Criteria:\n- Patient has STATUS = 'active' or 'completed'\n- Not surveyed in last 30 days\n- Has valid phone number\n\n### Survey Format:\nInteractive list with NPS scale (0-10) grouped by:\n- Promoters (9-10)\n- Passives (7-8)\n- Detractors (0-6)\n\n### Required Sheet Tabs:\n- `AllPatients` - Source of patient data\n- `NPSSurveys` - Survey tracking (PHONE, NAME, SENT_AT, SCORE, CATEGORY, RESPONDED_AT, REVIEW_SENT)\n\n### Configuration:\n- **Schedule:** 1st of each month at 10 AM\n- **Batch size:** 50 patients per run\n- **Delay:** 3 seconds between messages"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-responder",
+      "name": "Response Handler Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [120, 540],
+      "parameters": {
+        "color": 5,
+        "width": 580,
+        "height": 280,
+        "content": "## NPS Response Handler\n\nProcesses NPS survey responses and routes by category.\n\n### Response Handling:\n\n**Promoters (9-10):**\n1. Send thank you message\n2. Wait 3 seconds\n3. Send Google Review request with buttons\n4. Send Google Review link\n5. Mark REVIEW_SENT = true\n\n**Passives (7-8):**\n1. Send thank you message\n2. Log response\n\n**Detractors (0-6):**\n1. Send empathetic response\n2. Notify Beth via WhatsApp\n3. Mark FOLLOW_UP_NEEDED = true\n\n### Important:\nReplace `YOUR_GOOGLE_REVIEW_LINK` in the Send Review Link node with your actual Google Business review URL."
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Monthly NPS Schedule": {
+      "main": [[{"node": "Merge Triggers", "type": "main", "index": 0}]]
+    },
+    "Manual Trigger": {
+      "main": [[{"node": "Merge Triggers", "type": "main", "index": 1}]]
+    },
+    "Merge Triggers": {
+      "main": [[{"node": "Fetch All Patients", "type": "main", "index": 0}]]
+    },
+    "Fetch All Patients": {
+      "main": [[{"node": "Fetch NPS History", "type": "main", "index": 0}]]
+    },
+    "Fetch NPS History": {
+      "main": [[{"node": "Filter Eligible Patients", "type": "main", "index": 0}]]
+    },
+    "Filter Eligible Patients": {
+      "main": [[{"node": "Has Eligible Patients?", "type": "main", "index": 0}]]
+    },
+    "Has Eligible Patients?": {
+      "main": [
+        [{"node": "Split Into Batches", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [{"node": "Delay Between Messages", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Delay Between Messages": {
+      "main": [[{"node": "Send Typing Status", "type": "main", "index": 0}]]
+    },
+    "Send Typing Status": {
+      "main": [[{"node": "Send NPS Survey", "type": "main", "index": 0}]]
+    },
+    "Send NPS Survey": {
+      "main": [[{"node": "Log Survey Sent", "type": "main", "index": 0}]]
+    },
+    "Log Survey Sent": {
+      "main": [[{"node": "Loop Back", "type": "main", "index": 0}]]
+    },
+    "Loop Back": {
+      "main": [[{"node": "Split Into Batches", "type": "main", "index": 0}]]
+    },
+    "NPS Response Webhook": {
+      "main": [[{"node": "Parse NPS Response", "type": "main", "index": 0}]]
+    },
+    "Parse NPS Response": {
+      "main": [[{"node": "Is NPS Response?", "type": "main", "index": 0}]]
+    },
+    "Is NPS Response?": {
+      "main": [
+        [{"node": "Send Typing Status", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Send Typing Status": {
+      "main": [[{"node": "Route by Category", "type": "main", "index": 0}]]
+    },
+    "Route by Category": {
+      "main": [
+        [{"node": "Thank Promoter", "type": "main", "index": 0}],
+        [{"node": "Thank Passive", "type": "main", "index": 0}],
+        [{"node": "Respond to Detractor", "type": "main", "index": 0}]
+      ]
+    },
+    "Thank Promoter": {
+      "main": [[{"node": "Delay Before Review", "type": "main", "index": 0}]]
+    },
+    "Delay Before Review": {
+      "main": [[{"node": "Send Google Review Request", "type": "main", "index": 0}]]
+    },
+    "Send Google Review Request": {
+      "main": [[{"node": "Send Review Link", "type": "main", "index": 0}]]
+    },
+    "Send Review Link": {
+      "main": [[{"node": "Update Survey (Promoter)", "type": "main", "index": 0}]]
+    },
+    "Thank Passive": {
+      "main": [[{"node": "Update Survey (Passive)", "type": "main", "index": 0}]]
+    },
+    "Respond to Detractor": {
+      "main": [[{"node": "Notify Team (Detractor)", "type": "main", "index": 0}]]
+    },
+    "Notify Team (Detractor)": {
+      "main": [[{"node": "Update Survey (Detractor)", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "NPS", "id": "12" },
+    { "name": "Evolution API", "id": "7" },
+    { "name": "Survey", "id": "13" }
+  ],
+  "pinData": {}
+}

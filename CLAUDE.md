@@ -62,7 +62,9 @@ ragbot/
 │   ├── sofia-standalone.json     # Lead qualification
 │   ├── diana-standalone.json     # Patient check-ins
 │   ├── yara-evolution.json       # Executive assistant (Telegram)
-│   └── instagram-automation.json # Instagram comments & DMs
+│   ├── instagram-automation.json # Instagram comments & DMs
+│   ├── appointment-booking.json  # Interactive appointment scheduling
+│   └── nps-survey.json           # NPS survey with Google Review routing
 ├── prompts/                 # Agent system prompts (markdown)
 │   ├── system-prompt.md     # Sofia personality/rules
 │   ├── sofia-patient-prompt.md   # Sofia patient flow variant
@@ -238,6 +240,93 @@ For scheduling and detailed treatment info: `wa.me/5511999986838`
 **Required Google Sheet Tab**:
 - `InstagramInteractions` - Columns: TIMESTAMP, TYPE, USERNAME, USER_ID, MESSAGE, RESPONSE, COMMENT_ID, MEDIA_ID
 
+### Appointment Booking (Interactive)
+
+**Uses Evolution API Community Node** (`n8n-nodes-evolution-api`) for interactive WhatsApp features.
+
+**Flow Architecture**:
+```
+Trigger → Send Typing → Fetch Calendar → Send Date Buttons
+                                              ↓
+                                    User selects date
+                                              ↓
+                              Send Time List → User selects time
+                                              ↓
+                              Send Confirmation Buttons
+                                              ↓
+                     [Confirm] → Create Calendar Event → Notify Beth
+                     [Change]  → Back to Date Selection
+```
+
+**Interactive Elements**:
+- **Date Selection**: Buttons showing next 3 available dates + "Ver mais datas"
+- **Time Selection**: List grouped by Morning/Afternoon with available slots
+- **Confirmation**: Buttons for confirm or change
+
+**Session State Management**:
+Uses `BookingSessions` Google Sheet tab to track multi-step booking state:
+| PHONE | STATE | SELECTED_DATE | SELECTED_TIME | AVAILABLE_SLOTS | EXPIRES_AT |
+
+**States**: `awaiting_date` → `awaiting_time` → `awaiting_confirmation` → `completed`
+
+**Google Calendar Integration**:
+- Fetches events for next 14 days
+- Calculates available slots (9 AM - 6 PM, excluding 12-2 PM lunch)
+- Skips Sundays
+- Creates 1-hour appointment events with reminders
+
+**Required Credentials**:
+- `evolution-api-node-creds` - Evolution API community node
+- `google-calendar-creds` - Google Calendar OAuth2
+- `google-sheets-creds` - Google Sheets OAuth2
+
+**Required Google Sheet Tabs**:
+- `BookingSessions` - Booking state tracking
+- `Appointments` - Completed bookings log (PHONE, NAME, APPOINTMENT_DATE, CALENDAR_EVENT_ID, STATUS, CREATED_AT, SOURCE)
+
+### NPS Survey System
+
+**Dual Workflow Architecture**:
+
+1. **Survey Sender** (Scheduled monthly):
+   - Fetches all patients from `AllPatients` sheet
+   - Filters eligible (active/completed, not surveyed in 30 days)
+   - Sends interactive NPS list (0-10 scale)
+   - Logs to `NPSSurveys` sheet
+
+2. **Response Handler** (Webhook):
+   - Parses NPS score from list response
+   - Classifies: Promoter (9-10), Passive (7-8), Detractor (0-6)
+   - Routes response appropriately
+
+**Response Routing**:
+
+| Category | Score | Action |
+|----------|-------|--------|
+| **Promoter** | 9-10 | Thank you → Google Review request with buttons → Review link |
+| **Passive** | 7-8 | Thank you message |
+| **Detractor** | 0-6 | Empathetic response → Notify Beth → Mark for follow-up |
+
+**NPS Survey Format**:
+Interactive list with sections:
+- "Muito provável (9-10)" - Promoters
+- "Provável (7-8)" - Passives
+- "Pouco provável (4-6)" - Low passives
+- "Improvável (0-3)" - Detractors
+
+**Required Credentials**:
+- `evolution-api-node-creds` - Evolution API community node
+- `google-sheets-creds` - Google Sheets OAuth2
+
+**Required Google Sheet Tab**:
+- `NPSSurveys` - Columns: PHONE, NAME, SENT_AT, SCORE, CATEGORY, RESPONDED_AT, REVIEW_SENT, FOLLOW_UP_NEEDED
+
+**Configuration**:
+- Schedule: 1st of each month at 10 AM
+- Batch size: 50 patients per run (rate limiting)
+- Delay: 3 seconds between messages
+- **Important**: Replace `YOUR_GOOGLE_REVIEW_LINK` in workflow with actual Google Business review URL
+
 ---
 
 ## Knowledge Base Structure
@@ -272,8 +361,10 @@ requires_handoff: false
 ## Configuration
 
 **Credentials** (n8n Credentials Manager):
-- `evolution-api-creds` - Header auth with API key (WhatsApp)
+- `evolution-api-creds` - Header auth with API key (WhatsApp HTTP requests)
+- `evolution-api-node-creds` - Evolution API community node (`n8n-nodes-evolution-api`)
 - `google-sheets-creds` - Google Sheets OAuth2 (all agents)
+- `google-calendar-creds` - Google Calendar OAuth2 (appointment booking)
 - `anthropic-creds` - Anthropic API (all agents)
 - `openai-creds` - OpenAI API (embeddings, Whisper)
 - `qdrant-creds` - Qdrant API (all agents)
