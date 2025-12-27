@@ -1,0 +1,882 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "events": [
+          "messages",
+          "comments"
+        ]
+      },
+      "id": "2716bdfe-2fb2-4239-951c-1e94e761b483",
+      "name": "Instagram Trigger",
+      "type": "n8n-nodes-instagram-integrations.instagramTrigger",
+      "position": [
+        1776,
+        2384
+      ],
+      "webhookId": "instagram-webhook",
+      "typeVersion": 1,
+      "credentials": {
+        "instagramOAuth2Api": {
+          "id": "bpbnW8rOTunSCIsa",
+          "name": "Instagram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine if this is a comment or DM event\nconst webhookData = $input.first().json;\n\n// Check for direct eventType field from webhook\nconst eventTypeFromWebhook = webhookData.eventType || webhookData.event_type || webhookData.type || '';\n\n// Check if it's from us (echo) to avoid loops\nconst isEcho = webhookData.is_echo === true || webhookData.isEcho === true;\nconst isOurReply = webhookData.parent_id ? true : false;\n\n// Detect event type - check webhook eventType first, then fallback to structure detection\nlet detectedType = 'unknown';\n\nif (eventTypeFromWebhook.toLowerCase().includes('comment') || webhookData.comment_id || (webhookData.id && webhookData.media)) {\n  detectedType = 'comment';\n} else if (eventTypeFromWebhook.toLowerCase().includes('message') || webhookData.message || webhookData.sender) {\n  detectedType = 'dm';\n}\n\nif (detectedType === 'comment') {\n  return {\n    eventType: 'comment',\n    commentId: webhookData.comment_id || webhookData.commentId || webhookData.id || '',\n    text: webhookData.text || webhookData.message?.text || webhookData.content || '',\n    userId: webhookData.from?.id || webhookData.user?.id || webhookData.userId || '',\n    username: webhookData.from?.username || webhookData.user?.username || webhookData.username || 'usuario',\n    mediaId: webhookData.media?.id || webhookData.media_id || webhookData.mediaId || '',\n    timestamp: webhookData.timestamp || new Date().toISOString(),\n    shouldProcess: !isOurReply && !isEcho\n  };\n} else if (detectedType === 'dm') {\n  return {\n    eventType: 'dm',\n    messageId: webhookData.mid || webhookData.messageId || webhookData.id || '',\n    text: webhookData.message?.text || webhookData.text || webhookData.content || '',\n    senderId: webhookData.sender?.id || webhookData.senderId || webhookData.from?.id || '',\n    senderUsername: webhookData.sender?.username || webhookData.senderUsername || webhookData.from?.username || 'usuario',\n    timestamp: webhookData.timestamp || new Date().toISOString(),\n    shouldProcess: !isEcho\n  };\n} else {\n  return {\n    eventType: 'unknown',\n    shouldProcess: false,\n    rawData: webhookData\n  };\n}"
+      },
+      "id": "b64b7a43-6e5e-4ae6-ba47-d973f8fc91a7",
+      "name": "Determine Event Type",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2080,
+        2432
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-process",
+              "leftValue": "={{ $json.shouldProcess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fc140093-ec05-491b-9427-880d12d373b4",
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2304,
+        2432
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "comment"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Comment"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "dm"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "DM"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1ea7a86-ab5a-499b-8d74-c45824875367",
+      "name": "Route by Event Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        2528,
+        2432
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Comment from @{{ $json.username }}: \"{{ $json.text }}\"",
+        "options": {
+          "systemMessage": "# Instagram Comment Responder - Leitner Saude\n\nVoce responde comentarios no Instagram da Leitner Saude como se fosse o proprio dono da conta. NAO se apresente como assistente ou bot.\n\n## Seu Papel\n- Responder comentarios de forma engajadora e profissional\n- Direcionar pessoas interessadas para o DM ou WhatsApp\n- Manter tom amigavel mas profissional\n- NUNCA discutir precos ou detalhes medicos em comentarios publicos\n- Falar em primeira pessoa como dono da clinica\n\n## Contexto do Comentario\n- Usuario: @{{ $json.username }}\n- Comentario: \"{{ $json.text }}\"\n\n## FERRAMENTA RAG\n**Use query_knowledge_base para informacoes gerais sobre:**\n- Tratamentos (responder de forma geral)\n- Sobre a clinica e Dr. Guilherme\n- Metodologia e diferenciais\n\n**NAO mencione em comentarios:**\n- Precos\n- Informacoes medicas detalhadas\n\n## Tipos de Resposta\n\n**Perguntas sobre preco/valor:**\n\"Oi @[usuario]! Para valores e mais detalhes, chama a gente no DM!\"\n\n**Perguntas sobre tratamento:**\n\"Oi @[usuario]! Trabalhamos com protocolos modernos e personalizados. Manda um DM!\"\n\n**Elogios/feedback positivo:**\n\"Obrigado pelo carinho, @[usuario]! Ficamos felizes em ajudar!\"\n\n**Perguntas especificas/medicas:**\n\"Oi @[usuario]! Essa pergunta merece uma resposta mais completa. Chama no DM!\"\n\n**Comentarios negativos:**\n\"Oi @[usuario], sentimos muito. Por favor, nos mande um DM para resolvermos.\"\n\n## Formato\n- Maximo 150 caracteres\n- Sempre comece com \"Oi @[username]!\"\n- Tom amigavel mas profissional\n- Maximo 1 emoji\n- Direcione para DM quando apropriado\n\n## Resposta\nResponda APENAS com o texto da resposta, sem JSON."
+        }
+      },
+      "id": "ce9f3d47-a788-47e2-a1de-cfc8a69b9b9c",
+      "name": "Comment AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2808,
+        1712
+      ],
+      "typeVersion": 1.6
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "# Instagram DM - Leitner Saude\n\nVoce responde mensagens diretas no Instagram da Leitner Saude como se fosse o proprio dono da conta. NAO se apresente como assistente, bot ou qualquer nome. Fale em primeira pessoa.\n\n## Seu Papel\n- Atender mensagens diretas no Instagram\n- Qualificar leads e responder duvidas\n- Direcionar para WhatsApp para atendimento completo\n- Falar como se fosse o dono da clinica respondendo\n\n## Contexto\n- Usuario: @{{ $json.senderUsername }}\n- Mensagem: \"{{ $json.text }}\"\n\n## Primeira Mensagem\nSe a conversa nao tiver historico, comece com algo como:\n\"Oi! Tudo bem? Vi sua mensagem aqui. Como posso te ajudar?\"\n\n## FERRAMENTA RAG\n**Use query_knowledge_base para:**\n- Tratamentos (Tirzepatida, Mounjaro, GLP-1)\n- Sobre a clinica, Dr. Guilherme\n- Efeitos colaterais e manejo\n- Metodologia e diferenciais\n\n## Precos\n- Consulta (R$700): Pode mencionar se perguntarem\n- Tratamento completo: NAO mencione, direcione para WhatsApp\n\n## Respostas por Tipo\n\n**Interesse em tratamento:**\n- Explique brevemente usando RAG\n- Destaque o que esta incluso na consulta\n- Ofereca WhatsApp para agendamento\n\n**Preco da consulta:**\n- Informe R$700 (bioimpedancia, plano alimentar, retorno inclusos)\n\n**Preco do tratamento:**\n- NAO mencione valores\n- \"Para tratamento completo, minha equipe no WhatsApp explica tudo!\"\n\n**Quer agendar:**\n- \"Para agendar, fala com minha equipe no WhatsApp: wa.me/5511972433887\"\n\n## Formato\n- Maximo 500 caracteres\n- Tom amigavel e acolhedor\n- Maximo 2 emojis por mensagem\n- Mensagens curtas e objetivas\n- Falar em primeira pessoa (eu, minha clinica, minha equipe)\n\n## WhatsApp Atendimento\nwa.me/5511972433887\n\n## Resposta\nResponda APENAS com o texto da mensagem, sem JSON."
+        }
+      },
+      "id": "f5dacd76-8429-4090-b715-ea27c9f42e5d",
+      "name": "DM AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2808,
+        2840
+      ],
+      "typeVersion": 1.6
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=instagram-dm-{{ $('Route by Event Type').first().json.senderId }}",
+        "contextWindowLength": 20
+      },
+      "id": "ee890bd2-3381-4df9-a196-f52098872860",
+      "name": "DM Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [
+        2880,
+        3064
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare comment reply data\nconst aiOutput = $input.first().json.output || '';\nconst eventData = $('Route by Event Type').first().json;\n\n// Clean and truncate the response\nlet replyText = aiOutput\n  .replace(/```[\\s\\S]*?```/g, '')\n  .replace(/\\n+/g, ' ')\n  .trim();\n\n// Ensure it mentions the user\nif (!replyText.includes('@') && eventData.username) {\n  replyText = `Oi @${eventData.username}! ${replyText}`;\n}\n\n// Truncate to Instagram comment limit\nif (replyText.length > 200) {\n  replyText = replyText.substring(0, 197) + '...';\n}\n\nreturn {\n  commentId: eventData.commentId,\n  replyMessage: replyText,\n  username: eventData.username,\n  originalText: eventData.text,\n  mediaId: eventData.mediaId\n};"
+      },
+      "id": "49ea25da-2187-413b-a972-43fee66348c9",
+      "name": "Prepare Comment Reply",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3400,
+        2024
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare DM reply data\nconst aiOutput = $input.first().json.output || '';\nconst eventData = $('Route by Event Type').first().json;\n\n// Clean the response\nlet messageText = aiOutput\n  .replace(/```[\\s\\S]*?```/g, '')\n  .trim();\n\n// Truncate to Instagram DM limit (1000 chars)\nif (messageText.length > 950) {\n  messageText = messageText.substring(0, 947) + '...';\n}\n\nreturn {\n  recipientId: eventData.senderId,\n  message: messageText,\n  senderUsername: eventData.senderUsername,\n  originalText: eventData.text\n};"
+      },
+      "id": "cf65aab5-ae8a-4242-aa3b-8a915dca0084",
+      "name": "Prepare DM Reply",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3400,
+        2840
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "comment",
+        "operation": "replyToComment",
+        "commentId": "={{ $json.commentId }}",
+        "replyMessage": "={{ $json.replyMessage }}"
+      },
+      "id": "441aff64-c102-4680-8b13-04b7597b9a58",
+      "name": "Reply To Comment",
+      "type": "n8n-nodes-instagram-integrations.instagram",
+      "position": [
+        3624,
+        2024
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "instagramOAuth2Api": {
+          "id": "bpbnW8rOTunSCIsa",
+          "name": "Instagram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "recipientId": "={{ $json.recipientId }}",
+        "messageText": "={{ $json.message }}"
+      },
+      "id": "7256c7f8-fc83-4044-afdf-420ea6912adc",
+      "name": "Send DM",
+      "type": "n8n-nodes-instagram-integrations.instagram",
+      "position": [
+        3624,
+        2840
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "instagramOAuth2Api": {
+          "id": "bpbnW8rOTunSCIsa",
+          "name": "Instagram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Instagram Automation - Comments & Welcome DM\n\n**Package:** n8n-nodes-instagram-integrations\n\n**Operations Used:**\n- Comment → Reply (commentId, replyMessage)\n- Message → Send Text (recipientId, message)\n\n**Required Credentials:**\n- `instagram-creds` (Instagram OAuth2)\n- `anthropic-creds` (Claude Haiku)\n- `openai-creds` (Embeddings)\n- `qdrant-creds` (Vector store)\n- `google-sheets-creds` (Logging)\n\n**Required Sheet Tab:** `InstagramInteractions`",
+        "height": 200,
+        "width": 600,
+        "color": 7
+      },
+      "id": "1c3a2637-4163-4ea5-b023-299f78df5e2f",
+      "name": "Main Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1744,
+        1552
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2880,
+        1936
+      ],
+      "id": "449eebb1-b183-4cc0-a937-9192e0de76fc",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2752,
+        1936
+      ],
+      "id": "b724a3b0-c935-4548-8eb8-230278ca6791",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "vZ8MflpSntZafu8Z",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2752,
+        3064
+      ],
+      "id": "fc1254bb-e777-4cb9-a7e6-6b9a1b9654e7",
+      "name": "Anthropic Chat Model1",
+      "credentials": {
+        "anthropicApi": {
+          "id": "vZ8MflpSntZafu8Z",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "query_knowledge_base",
+        "description": "Search the Leitner Saude clinic knowledge base for:\n- TREATMENTS: Tirzepatide/Mounjaro protocol, GLP-1, dosages\n- CLINIC INFO: Dr. Guilherme Leitner, mission, methodology\n- CONSULTATION: What's included, duration, what to bring\n- SIDE EFFECTS: Common effects and how to manage them\n- FAQ: General questions about the clinic and treatments",
+        "topK": 3
+      },
+      "id": "2e6d3017-eb98-40ea-99b7-5c14cef46b5e",
+      "name": "Knowledge Base RAG Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [
+        3008,
+        1936
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "clinic_knowledge_base",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "d9a36d1d-3db2-4eea-83f5-275d38f56a82",
+      "name": "Qdrant Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [
+        2904,
+        2144
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "qdrantApi": {
+          "id": "HirFWrtxAVRESCUF",
+          "name": "QdrantApi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "bfdfc535-2b88-432f-982c-246a04c1ac39",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2984,
+        2352
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openAiApi": {
+          "id": "qEfTDx0PmHg6Aqw8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3192,
+        2144
+      ],
+      "id": "12e42c2a-eec3-4812-afc7-ad84edf15c47",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "qEfTDx0PmHg6Aqw8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "query_knowledge_base",
+        "description": "Search the Leitner Saude clinic knowledge base for:\n- TREATMENTS: Tirzepatide/Mounjaro protocol, GLP-1, dosages\n- CLINIC INFO: Dr. Guilherme Leitner, mission, methodology\n- CONSULTATION: What's included, duration, what to bring\n- SIDE EFFECTS: Common effects and how to manage them\n- FAQ: General questions about the clinic and treatments",
+        "topK": 3
+      },
+      "id": "3335f674-8ce0-41a7-a660-8f6817c35ba8",
+      "name": "Knowledge Base RAG Tool1",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [
+        3008,
+        3064
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "clinic_knowledge_base",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "1a6694c4-bab0-4f7d-8e1e-a5d991ce3a3b",
+      "name": "Qdrant Vector Store1",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [
+        2904,
+        3272
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "qdrantApi": {
+          "id": "HirFWrtxAVRESCUF",
+          "name": "QdrantApi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "2184faf6-e97b-4735-95c0-3306c6b50466",
+      "name": "OpenAI Embeddings1",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2984,
+        3480
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openAiApi": {
+          "id": "qEfTDx0PmHg6Aqw8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3192,
+        3272
+      ],
+      "id": "b06a90f6-98db-44c8-9e1d-328369feb4f1",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "qEfTDx0PmHg6Aqw8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analise a seguinte mensagem recebida no Instagram Direct da Leitner Saude (clinica de emagrecimento):\n\nMensagem: \"{{ $json.text }}\"\nUsuario: @{{ $json.senderUsername }}\n\nClassifique se esta mensagem e de um POTENCIAL CLIENTE (lead) ou uma MENSAGEM PESSOAL/IRRELEVANTE.",
+        "options": {
+          "systemMessage": "Voce e um classificador de mensagens para o Instagram de uma clinica de emagrecimento (Leitner Saude).\n\n## Sua Tarefa\nAnalise a mensagem e determine se e de um POTENCIAL CLIENTE ou PESSOAL/IRRELEVANTE.\n\n## E POTENCIAL CLIENTE (isLead: true) se:\n- Pergunta sobre tratamentos, emagrecimento, perda de peso\n- Pergunta sobre precos, valores, consulta\n- Menciona interesse em emagrecer, perder peso, saude\n- Pergunta sobre a clinica, medico, metodologia\n- Pergunta sobre Tirzepatida, Mounjaro, Ozempic, GLP-1\n- Responde a uma conversa anterior sobre tratamento\n- Pede informacoes sobre agendamento\n- Menciona ter visto post/reels/stories da clinica\n- Qualquer duvida relacionada a saude/emagrecimento\n\n## E PESSOAL/IRRELEVANTE (isLead: false) se:\n- Apenas cumprimento sem contexto (so 'oi', 'ola')\n- Conversa claramente pessoal nao relacionada a clinica\n- Spam ou propaganda\n- Mensagem enviada para conta errada\n- Pedido de parceria/collab de influencer\n- Venda de produtos/servicos\n- Mensagens em outros idiomas sem contexto de saude\n\n## IMPORTANTE\n- Na DUVIDA, classifique como LEAD (melhor responder do que perder cliente)\n- Cumprimentos com contexto ('oi, quero saber sobre tratamento') = LEAD\n- Mensagens curtas mas relevantes ('quanto custa?') = LEAD\n\n## Formato de Resposta\nResponda APENAS com JSON valido:\n{\n  \"isLead\": true ou false,\n  \"confidence\": \"high\" ou \"medium\" ou \"low\",\n  \"reason\": \"Breve explicacao da classificacao\"\n}"
+        }
+      },
+      "id": "classify-dm-intent",
+      "name": "Classify DM Intent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2700,
+        2600
+      ],
+      "typeVersion": 1.6
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2620,
+        2824
+      ],
+      "id": "anthropic-classifier",
+      "name": "Anthropic Classifier",
+      "credentials": {
+        "anthropicApi": {
+          "id": "vZ8MflpSntZafu8Z",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse classifier response and determine if should respond\nconst aiOutput = $input.first().json.output || '';\nconst eventData = $('Route by Event Type').first().json;\n\n// Try to parse JSON from response\nlet classification = { isLead: true, confidence: 'low', reason: 'Failed to parse' };\n\ntry {\n  // Extract JSON from response (might be wrapped in markdown)\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    classification = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // If parsing fails, default to treating as lead (better safe than sorry)\n  classification = { isLead: true, confidence: 'low', reason: 'Parse error - defaulting to lead' };\n}\n\nreturn {\n  ...eventData,\n  isLead: classification.isLead,\n  classificationConfidence: classification.confidence,\n  classificationReason: classification.reason\n};"
+      },
+      "id": "parse-classification",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2920,
+        2600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-lead",
+              "leftValue": "={{ $json.isLead }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-lead-check",
+      "name": "Is Lead?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3140,
+        2600
+      ],
+      "typeVersion": 2
+    }
+  ],
+  "connections": {
+    "Instagram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Determine Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [
+          {
+            "node": "Determine Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Event Type": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Route by Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Event Type": {
+      "main": [
+        [
+          {
+            "node": "Comment AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify DM Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify DM Intent": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Is Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Lead?": {
+      "main": [
+        [
+          {
+            "node": "DM AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Anthropic Classifier": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify DM Intent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare Comment Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DM AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare DM Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DM Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "DM AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Comment Reply": {
+      "main": [
+        [
+          {
+            "node": "Reply To Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare DM Reply": {
+      "main": [
+        [
+          {
+            "node": "Send DM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply To Comment": {
+      "main": [
+        []
+      ]
+    },
+    "Send DM": {
+      "main": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Comment AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Comment AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DM AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Comment AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Base RAG Tool1": {
+      "ai_tool": [
+        [
+          {
+            "node": "DM AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store1": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool1",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Base RAG Tool1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ec565d400e8a8aa7cc5cbbb980df910794b39c401586fab619e46667eb8876aa"
+  }
+}

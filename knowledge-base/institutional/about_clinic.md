@@ -8,7 +8,7 @@ requires_handoff: false
 
 # Sobre a Clinica / About the Clinic
 ### Quem Somos
-Somos uma clinica especializada em medicina do emagrecimento, oferecendo tratamentos medicamentosos de ultima geracao com acompanhamento medico personalizado e continuo.
+Somos a Leitner Saúde, clinica do Dr. Guilherme Leitner, especialista em emagrecimento e performance esportiva, e oferecemos tratamentos de ultima geracao com acompanhamento medico personalizado e continuo.
 
 ### Nossa Missao
 Transformar vidas atraves da medicina do emagrecimento, combinando ciencia, tecnologia e atendimento humanizado para resultados sustentaveis.
@@ -26,3 +26,4 @@ Transformar vidas atraves da medicina do emagrecimento, combinando ciencia, tecn
 3. **Acompanhamento Proximo**: Check-ins frequentes, nao apenas consultas esporadicas
 4. **Retornos Inclusos**: Desde que realizado dentro de 30 dias da consulta inicial.
 5. **Suporte Continuo**: Equipe disponivel para duvidas entre consultas
+6. **Planejamento Alimentar**: Consulta inclui plano alimentar personalizado para te ajudar a atingir seus objetivos.

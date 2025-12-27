@@ -4,22 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-agent AI system for a weight loss clinic built with **n8n AI Agent**, **Claude Haiku 4.5**, and **RAG (Qdrant + OpenAI embeddings)**. Three specialized agents handle different communication channels:
+Multi-agent AI system for a weight loss clinic built with **n8n AI Agent**, **Claude Haiku 4.5**, and **RAG (Qdrant + OpenAI embeddings)**. Four specialized agents handle different communication channels via **Evolution API** (WhatsApp), Telegram, and Instagram:
 
 | Agent | Channel | Purpose | Data Store |
 |-------|---------|---------|------------|
-| **Sofia** | WhatsApp | Lead qualification from Meta Ads | Supabase |
+| **Sofia** | WhatsApp | Lead qualification | Google Sheets |
 | **Diana** | WhatsApp | Weekly patient check-ins (Tirzepatide) | Google Sheets |
 | **Yara** | Telegram | Executive assistant for management | Reads from Diana/Sofia |
+| **Lara** | Instagram | Comment replies & DM welcome | Google Sheets |
 
 ## Architecture
 
 ```
-Management (Telegram) → Yara → [Google Sheets, Qdrant, Sofia Data]
-                                       ↓
-Patients (WhatsApp) ← Diana ← Google Sheets (Patients + CheckIns)
-Leads (WhatsApp) ← Sofia ← Supabase + Qdrant
+                                    ┌→ Sofia (unknown contact = lead)
+WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
+       (Railway)        ↑                   └→ Yara (authorized team member)
+                 n8n HTTP Request
+
+Instagram → n8n-nodes-instagram-integrations → Lara (comments & DMs)
+         (Meta Graph API webhooks)
 ```
+
+**Routing Logic:**
+1. Sender in `AUTHORIZED_PHONES` → Yara
+2. Sender in Patients Google Sheet → Diana
+3. Otherwise → Sofia
 
 All agents share the **Qdrant knowledge base** (`clinic_knowledge_base` collection) for RAG retrieval.
 
@@ -49,25 +58,17 @@ curl -X PUT 'http://localhost:6333/collections/clinic_knowledge_base' \
 
 ```
 ragbot/
-├── workflows/               # n8n workflow JSON exports (Meta WhatsApp API)
-│   ├── sofia-alternative-flow.json    # Lead qualification (WhatsApp)
-│   ├── sofia-zapi-flow.json           # Lead qualification (Z-API alternative)
-│   ├── diana-patient-checkin.json     # Patient check-ins (WhatsApp)
-│   └── yara-executive-assistant.json  # Executive assistant (Telegram)
-├── evolution/               # Evolution API integration (self-hosted WhatsApp)
-│   ├── README.md            # Comprehensive setup guide
-│   ├── .env.example         # Environment variables template
-│   ├── docker-compose.yml   # Local development setup
-│   ├── scripts/
-│   │   └── setup-webhooks.sh    # Webhook configuration script
-│   └── workflows/           # Standalone Evolution API workflows
-│       ├── sofia-standalone.json    # Sofia with Evolution API
-│       ├── diana-standalone.json    # Diana with Evolution API
-│       └── yara-evolution.json      # Yara with Evolution API
+├── workflows/               # n8n workflow JSON exports (Evolution API)
+│   ├── sofia-standalone.json     # Lead qualification
+│   ├── diana-standalone.json     # Patient check-ins
+│   ├── yara-evolution.json       # Executive assistant (Telegram)
+│   └── instagram-automation.json # Instagram comments & DMs
 ├── prompts/                 # Agent system prompts (markdown)
 │   ├── system-prompt.md     # Sofia personality/rules
+│   ├── sofia-patient-prompt.md   # Sofia patient flow variant
 │   ├── diana-prompt.md      # Diana personality/rules
-│   └── yara-prompt.md       # Yara personality/rules
+│   ├── yara-prompt.md       # Yara personality/rules
+│   └── lara-instagram-prompt.md  # Lara Instagram rules
 ├── knowledge-base/          # RAG documents (markdown with YAML frontmatter)
 │   ├── institutional/       # About clinic, mission, values
 │   ├── treatments/          # Tirzepatide protocols, dosage, side effects
@@ -75,23 +76,12 @@ ragbot/
 │   ├── objection_handling/  # Price objections, concerns
 │   └── compliance/          # LGPD, medical disclaimers
 ├── scripts/
-│   └── embed_knowledge_base.js  # Chunks, embeds, uploads to Qdrant
-├── database/
-│   └── schema.sql           # Supabase schema (Sofia data)
-├── dashboard/               # Static HTML/CSS/JS dashboard
-│   ├── index.html
-│   ├── app.js               # n8n API integration
-│   ├── styles.css
-│   └── config.example.js    # Configuration template
+│   ├── embed_knowledge_base.js   # Chunks, embeds, uploads to Qdrant
+│   └── setup-webhooks.sh         # Evolution API webhook configuration
 ├── templates/               # Google Sheets CSV templates
-│   ├── Patients.csv         # Patient master data structure
-│   ├── CheckIns.csv         # Simplified check-in log
 │   └── README.md            # Import instructions
-└── docs/                    # Setup guides
-    ├── SETUP.md             # Sofia setup
-    ├── PATIENT_CHECKIN_SETUP.md  # Diana setup
-    ├── YARA_SETUP.md        # Yara setup
-    ├── WHATSAPP_SETUP.md    # WhatsApp Business API
+└── docs/
+    ├── EVOLUTION_SETUP.md   # Complete Evolution API setup guide
     └── ROADMAP.md           # Future improvements
 ```
 
@@ -116,6 +106,7 @@ Trigger → Message Handling → AI Agent Node → Response Processing → Outpu
 - **Sofia**: `sofia-whatsapp-{phone}` - 50 message window
 - **Diana**: `checkin-{phone}` - 10 message window
 - **Yara**: `yara-telegram-{chatId}` - 20 message window
+- **Lara**: `instagram-dm-{userId}` - 20 message window (DMs only, comments are stateless)
 
 ### Handoff Detection Pattern
 Sofia uses embedded tags in AI responses:
@@ -131,7 +122,7 @@ Response processing node parses these tags and routes accordingly.
 
 ### Sofia (Lead Qualification)
 
-**Trigger**: WhatsApp messages from Meta Ads leads
+**Trigger**: WhatsApp messages via Evolution API webhook
 
 **Message Types Handled**:
 - Text → Direct to AI Agent
@@ -162,7 +153,7 @@ Response processing node parses these tags and routes accordingly.
 When AI includes `[AGENDAR_CONSULTA]` or `[TRANSFERIR_HUMANO]`:
 1. Parse lead data from `[DADOS_LEAD]` block
 2. Send response to lead via WhatsApp
-3. Notify human support with full context (WhatsApp to designated number)
+3. Notify human support with full context
 
 ### Diana (Patient Check-ins)
 
@@ -175,7 +166,7 @@ When AI includes `[AGENDAR_CONSULTA]` or `[TRANSFERIR_HUMANO]`:
    - Notify team on Telegram if 2 weeks or last week remaining
 
 2. **Inbound (Patient Responses)**:
-   - WhatsApp trigger → Lookup patient in Sheets
+   - Evolution API webhook → Lookup patient in Sheets
    - If known: AI response → Parse summary + follow-up flag → Log to CheckIns sheet → Telegram alert if follow-up needed
    - If unknown: Polite "not registered" message
 
@@ -210,6 +201,43 @@ Parsed and logged to CheckIns sheet with structured columns.
 - Last 50 check-in logs with summaries
 - Pre-calculated: active patients, renewal pending, follow-up needed
 
+### Lara (Instagram Automation)
+
+**Dual Trigger Architecture**:
+Uses `n8n-nodes-instagram-integrations` community package for Meta Graph API integration.
+
+1. **Comment Auto-Reply**:
+   - Instagram webhook triggers on new comments
+   - Filters out our own replies (avoid loops)
+   - AI generates short response (max 200 chars)
+   - Always directs detailed questions to DM
+   - Logs interaction to Google Sheets
+
+2. **DM Welcome & Responses**:
+   - Instagram webhook triggers on new DMs
+   - Filters out echo messages (our own sends)
+   - Memory-based session tracking per user
+   - Welcome message on first contact
+   - RAG-powered responses for clinic questions
+   - Directs to WhatsApp for scheduling
+
+**Response Limits**:
+- Comments: Max 200 characters (public visibility)
+- DMs: Max 1000 characters (Instagram API limit)
+
+**Pricing Rules (Instagram-specific)**:
+- Consultation price (R$700): Can mention in DMs if asked
+- Treatment price: NEVER mention, direct to WhatsApp
+
+**WhatsApp Handoff**:
+For scheduling and detailed treatment info: `wa.me/5511999986838`
+
+**Required Credentials**:
+- `instagram-creds` - Instagram OAuth2 (from n8n-nodes-instagram-integrations)
+
+**Required Google Sheet Tab**:
+- `InstagramInteractions` - Columns: TIMESTAMP, TYPE, USERNAME, USER_ID, MESSAGE, RESPONSE, COMMENT_ID, MEDIA_ID
+
 ---
 
 ## Knowledge Base Structure
@@ -241,70 +269,34 @@ requires_handoff: false
 
 ---
 
-## Database Schema (Supabase - Sofia Only)
-
-**Tables**:
-- `conversations` - One row per lead (phone, stage, collected_data JSONB, status)
-- `messages` - All message logs with RAG analytics
-
-**Conversation Stages**: greeting → discovery → qualification → value_building → scheduling → confirmation
-
-**Status Values**: active, awaiting_human, scheduled, completed, cold
-
-**Views** (pre-built analytics):
-- `daily_metrics` - Inbound/outbound counts, unique users
-- `conversion_funnel` - Stages to scheduling conversion rate
-- `stage_distribution` - Current pipeline breakdown
-- `hourly_activity` - Peak hours analysis
-- `recent_conversations` - Dashboard quick view
-
-**Functions**:
-- `get_dashboard_summary()` - Returns JSON with totals
-- `get_conversation_details(phone)` - Full conversation + messages
-
----
-
-## Dashboard (Static HTML/JS)
-
-**Architecture**: Pure HTML/CSS/JS connecting to n8n API (no build step)
-
-**Configuration**:
-- `config.js` (git-ignored) or localStorage settings
-- Requires: n8n URL, n8n API key, workflow IDs for each agent
-
-**Features**:
-- Agent status (live/offline) from workflow active state
-- Recent executions list
-- Per-agent execution history and stats
-- Execution filtering by workflow/status
-
-**Not Yet Implemented** (per ROADMAP.md):
-- Supabase connection for Sofia data
-- Google Sheets connection for Diana data
-- Real conversation/patient metrics
-
----
-
 ## Configuration
 
 **Credentials** (n8n Credentials Manager):
-- `google-sheets-creds` - Google Sheets OAuth2 (Diana, Yara)
+- `evolution-api-creds` - Header auth with API key (WhatsApp)
+- `google-sheets-creds` - Google Sheets OAuth2 (all agents)
 - `anthropic-creds` - Anthropic API (all agents)
-- `openai-creds` - OpenAI API (embeddings, Whisper, RAG LLM)
+- `openai-creds` - OpenAI API (embeddings, Whisper)
 - `qdrant-creds` - Qdrant API (all agents)
 - `telegram-creds` - Telegram API (Diana alerts, Yara)
-- `whatsapp-creds` - WhatsApp Business API (Sofia, Diana)
-- `whatsapp-trigger-creds` - WhatsApp Trigger (Sofia, Diana)
-- `whatsapp-bearer-creds` - HTTP Header Auth for media download (Sofia)
+- `instagram-creds` - Instagram OAuth2 (Lara) via n8n-nodes-instagram-integrations
 
 **Hardcoded Values** (in workflow JSONs):
-- Google Sheet IDs (Patients, CheckIns)
+- Google Sheet IDs (Patients, CheckIns, Leads)
 - Telegram chat IDs (authorized users, notification groups)
-- Human support phone number (Sofia handoffs)
-- WhatsApp phone number IDs
+- Admin phone number (handoff notifications)
+- Evolution API instance name
 
-**Environment Variables** (embedding script only):
+**Environment Variables** (`.env.example`):
 ```env
+# Evolution API
+EVOLUTION_API_URL=https://your-railway-domain.up.railway.app
+EVOLUTION_API_KEY=your-api-key
+EVOLUTION_INSTANCE_NAME=clinic-whatsapp
+
+# n8n Webhooks
+N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook
+
+# Embedding Script
 OPENAI_API_KEY=sk-xxxxx
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your_key
@@ -330,58 +322,7 @@ QDRANT_COLLECTION_NAME=clinic_knowledge_base
 - Sofia: Professional, concise, NO emojis
 - Diana: Professional, NO emojis
 - Yara: Executive/analytical, minimal emojis
-
----
-
-## WhatsApp Architecture
-
-**Current**: Dual phone numbers (Sofia = leads, Diana = patients) to avoid routing conflicts.
-
-**Future option**: Unified single-number workflow with routing:
-```
-Message → Lookup Patients sheet → Found? → Diana : Sofia
-```
-To implement: merge workflows, add patient lookup at entry, route based on result.
-
----
-
-## Evolution API Integration
-
-Alternative WhatsApp integration using self-hosted Evolution API (Baileys-based) instead of official Meta API.
-
-### Architecture
-
-```
-                                    ┌→ Sofia (unknown contact = lead)
-WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
-       (Railway)        ↑                   └→ Yara (authorized team member)
-                 n8n HTTP Request
-```
-
-### Routing Logic
-1. Sender in `AUTHORIZED_PHONES` → Yara
-2. Sender in Patients Google Sheet → Diana
-3. Otherwise → Sofia
-
-### Deployment Options
-- **Railway** (recommended): Deploy `atendai/evolution-api:latest` with persistent volume
-- **Docker**: Use `evolution/docker-compose.yml` for local development
-
-### Key Differences from Official API
-
-| Feature | Official API | Evolution API |
-|---------|--------------|---------------|
-| Stability | High | Medium (WhatsApp Web protocol) |
-| Setup | Complex (Meta approval) | Simple (QR scan) |
-| Cost | Per-message pricing | Self-hosted (free) |
-| Templates | Required for outbound | Not needed |
-| Risk | Low | Medium (unofficial) |
-
-### Credentials
-- `evolution-api-creds` - Header auth with API key
-
-### Setup Guide
-See `evolution/README.md` for complete deployment instructions.
+- Lara: Friendly, casual (Instagram tone), max 1-2 emojis
 
 ---
 
@@ -425,21 +366,12 @@ See `evolution/README.md` for complete deployment instructions.
 3. Verify RAG retrieval in vector store tool output
 4. Monitor Telegram notifications for handoff triggers
 
-### Dashboard Deployment
-1. Copy `dashboard/` to static hosting
-2. Create `config.js` from `config.example.js` or use Settings UI
-3. No build step required
-
 ---
 
 ## Related Documentation
 
 | Doc | Purpose |
 |-----|---------|
-| `docs/SETUP.md` | Sofia setup guide |
-| `docs/PATIENT_CHECKIN_SETUP.md` | Diana setup guide |
-| `docs/YARA_SETUP.md` | Yara setup guide |
-| `docs/WHATSAPP_SETUP.md` | WhatsApp Business API credentials setup |
+| `docs/EVOLUTION_SETUP.md` | Complete Evolution API deployment guide |
 | `docs/ROADMAP.md` | Future improvements and planned features |
-| `evolution/README.md` | Evolution API setup and deployment guide |
 | `templates/README.md` | Google Sheets import instructions |

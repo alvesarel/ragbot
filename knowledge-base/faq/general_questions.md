@@ -11,17 +11,17 @@ requires_handoff: false
 ## Sobre a Consulta
 
 ### Quanto custa a consulta?
-A consulta com nosso medico especialista e R$700. Ela inclui:
+A consulta com o Dr. Guilherme Leitner custa R$700. Ela inclui:
 - Avaliacao medica completa
 - Exame de bioimpedancia
-- Protocolo personalizado
+- Plano alimentar personalizado para seu objetivo
 - Retorno gratuito em 30 dias se precisar de ajustes
 
 ### Quanto tempo dura a consulta?
 A primeira consulta dura aproximadamente 1 hora. E um momento importante para conhecer seu historico, objetivos e definir o melhor caminho.
 
 ### Preciso fazer jejum?
-Nao e necessario fazer jejum, mas evite refeicoes muito pesadas antes da consulta.
+Nao e necessario fazer jejum, mas evite refeicoes muito pesadas antes da consulta, uma vez que será realizada a bioimpedancia.
 
 ### O que devo levar?
 - Documento de identidade
@@ -32,16 +32,13 @@ Nao e necessario fazer jejum, mas evite refeicoes muito pesadas antes da consult
 ## Sobre o Tratamento
 
 ### Funciona mesmo?
-Nossos tratamentos sao baseados em protocolos medicos com medicamentos aprovados pela ANVISA. Os resultados variam de pessoa para pessoa, mas a maioria dos pacientes percebe mudancas nas primeiras semanas de tratamento.
+Nossos tratamentos sao baseados em protocolos medicos com medicamentos aprovados para tratamento da Obesidade (tirzepatida) e Lipedema (gestrinona). Os resultados variam de pessoa para pessoa, mas a maioria dos pacientes percebe mudancas nas primeiras semanas de tratamento.
 
 ### Quanto tempo demora para ver resultados?
 A maioria dos pacientes comeca a perceber mudancas nas primeiras 2-4 semanas. Resultados mais expressivos geralmente aparecem entre 2-3 meses de tratamento.
 
 ### E seguro?
 Sim. Trabalhamos apenas com medicamentos aprovados pela ANVISA e acompanhamento medico continuo. Cada protocolo e personalizado considerando seu historico de saude.
-
-### Posso fazer se tenho diabetes?
-Muitos dos medicamentos que utilizamos sao indicados tambem para diabetes. Na consulta, o medico avalia seu caso especifico para definir o melhor protocolo.
 
 ## Sobre Agendamento
 
@@ -60,7 +57,7 @@ Nossa agenda de sabado e mais limitada. Tenho horarios disponiveis principalment
 Aceitamos diversas formas de pagamento. Os detalhes sao informados no momento do agendamento.
 
 ### Tem convenio?
-Atualmente trabalhamos apenas com atendimento particular.
+Atualmente trabalhamos apenas com atendimento particular. Emitimos nota fiscal para que o cliente entre com pedido de reembolso do valor da consulta.
 
 ### Posso parcelar?
-Sim, oferecemos opcoes de parcelamento. Os detalhes sao discutidos na consulta.
+Sim, oferecemos opcoes de parcelamento. A consulta pode ser paga em 2x no cartão e qualquer tratamento pode ser parcelado em até 12x (com adicional de taxa). Os detalhes sao discutidos na consulta.

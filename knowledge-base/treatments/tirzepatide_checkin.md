@@ -22,7 +22,7 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 ### Diferenciais em Relacao a Semaglutida
 - Acao dual (GIP + GLP-1) vs acao unica da semaglutida
 - Potencialmente mais eficaz para perda de peso
-- Perfil de efeitos colaterais semelhante
+- Perfil de efeitos colaterais semelhante porem menos intensos
 
 ## Protocolo de Dosagem
 
@@ -94,7 +94,6 @@ A **Tirzepatida** (marca comercial Mounjaro) e um medicamento injetavel da class
 
 ### Plano 12 Semanas (Standard)
 - Plano padrao recomendado
-- Cobre fase de titulacao inicial completa
 - Permite avaliacao de resposta
 - Resultados visiveis na maioria dos pacientes
 

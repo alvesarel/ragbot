@@ -1,6 +1,6 @@
-# Evolution API Integration
+# Evolution API Setup
 
-Alternative WhatsApp integration using Evolution API instead of the official WhatsApp Business API. This setup uses a single WhatsApp number with intelligent routing to all three agents (Sofia, Diana, Yara).
+WhatsApp integration using Evolution API with a single WhatsApp number and intelligent routing to all three agents (Sofia, Diana, Yara).
 
 ## Architecture Overview
 
@@ -218,44 +218,22 @@ Should return: `{"state": "open"}`
 
 ### Step 2: Import Workflows
 
-Import the following workflows from `evolution/workflows/`:
+Import the following workflows from `workflows/`:
 
-1. **router-evolution.json** - Central message router (receives all webhooks)
-2. **send-whatsapp.json** - Reusable send message sub-workflow
-3. **sofia-evolution.json** - Lead qualification
-4. **diana-evolution.json** - Patient check-ins
-5. **yara-evolution.json** - Executive assistant
+1. **sofia-standalone.json** - Lead qualification (includes webhook + routing)
+2. **diana-standalone.json** - Patient check-ins
+3. **yara-evolution.json** - Executive assistant (Telegram)
 
-### Step 3: Configure Router Workflow
+### Step 3: Configure Workflows
 
-Open `router-evolution.json` in n8n and update:
+For each workflow, update:
 
-1. **Webhook node**: Note the webhook URL (e.g., `https://n8n.yourdomain.com/webhook/evolution-router`)
-2. **Set node (Config)**: Update these values:
-   ```javascript
-   {
-     "evolutionApiUrl": "https://your-railway-domain.up.railway.app",
-     "instanceName": "clinic-whatsapp",
-     "adminPhone": "5511999998888",  // Team notification number
-     "authorizedPhones": ["5511999998888", "5511888887777"]  // Yara access
-   }
-   ```
-3. **Google Sheets node**: Ensure credential is selected for patient lookup
+1. **Evolution API URL**: Set to your Railway domain
+2. **Credentials**: Select `evolution-api-creds` for HTTP nodes
+3. **Google Sheets**: Ensure credential is selected for patient lookup
+4. **Admin phone**: Update notification phone numbers
 
-### Step 4: Configure Send Workflow
-
-Open `send-whatsapp.json` and verify:
-- Evolution API URL is correct
-- Credential is `evolution-api-creds`
-
-### Step 5: Configure Agent Workflows
-
-For each agent workflow (Sofia, Diana, Yara):
-1. Verify "Execute Workflow" trigger is set correctly
-2. Update the "Send WhatsApp" nodes to call `send-whatsapp` sub-workflow
-3. Update admin notification phone number
-
-### Step 6: Update Evolution API Webhook
+### Step 4: Update Evolution API Webhook
 
 Now that n8n is configured, update Evolution API to send webhooks to your router:
 
@@ -412,12 +390,9 @@ GET /instance/fetchInstances
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | Local development setup (optional) |
 | `.env.example` | Environment variables template |
-| `workflows/router-evolution.json` | Central message router |
-| `workflows/send-whatsapp.json` | Reusable send message helper |
-| `workflows/sofia-evolution.json` | Lead qualification agent |
-| `workflows/diana-evolution.json` | Patient check-in agent |
+| `workflows/sofia-standalone.json` | Lead qualification agent |
+| `workflows/diana-standalone.json` | Patient check-in agent |
 | `workflows/yara-evolution.json` | Executive assistant agent |
 | `scripts/setup-webhooks.sh` | Webhook registration script |
 

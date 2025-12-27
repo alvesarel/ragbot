@@ -1,8 +1,8 @@
-# Clinic AI Agents - Multi-Agent System
+# Clinic AI Agents
 
-AI-powered multi-agent system for a premium weight loss clinic, built with n8n AI Agent, Claude Haiku 4.5, and RAG. Includes three specialized agents: **Sofia** (lead qualification), **Diana** (patient check-ins), and **Yara** (executive assistant).
+Multi-agent AI system for a premium weight loss clinic, built with **n8n AI Agent**, **Claude Haiku 4.5**, and **RAG (Qdrant)**. Uses **Evolution API** for WhatsApp integration.
 
-## Agents Overview
+## Agents
 
 | Agent | Channel | Purpose |
 |-------|---------|---------|
@@ -13,106 +13,54 @@ AI-powered multi-agent system for a premium weight loss clinic, built with n8n A
 ## Architecture
 
 ```
-                              ┌─────────────────────────────────────────┐
-                              │            MANAGEMENT TEAM              │
-                              │              (Telegram)                 │
-                              └──────────────────┬──────────────────────┘
-                                                 │
-                                                 ▼
-                              ┌─────────────────────────────────────────┐
-                              │           YARA (Executive)              │
-                              │        Telegram AI Assistant            │
-                              │   - Query patient data from Diana       │
-                              │   - Analytics & pattern recognition     │
-                              │   - Knowledge base access               │
-                              └──────────────────┬──────────────────────┘
-                                                 │
-                    ┌────────────────────────────┼────────────────────────────┐
-                    │                            │                            │
-                    ▼                            ▼                            ▼
-         ┌─────────────────┐          ┌─────────────────┐          ┌─────────────────┐
-         │  Google Sheets  │          │     Qdrant      │          │  Google Sheets  │
-         │   (Patients)    │          │  (Knowledge)    │          │   (CheckIns)    │
-         └────────┬────────┘          └────────┬────────┘          └────────┬────────┘
-                  │                            │                            │
-                  └────────────────────────────┼────────────────────────────┘
-                                               │
-         ┌─────────────────────────────────────┼─────────────────────────────────────┐
-         │                                     │                                     │
-         ▼                                     │                                     ▼
-┌─────────────────┐                            │                          ┌─────────────────┐
-│     DIANA       │                            │                          │     SOFIA       │
-│ Patient Agent   │◄───────────────────────────┘────────────────────────►│  Lead Agent     │
-│ (Check-ins)     │                                                       │ (Qualification) │
-└────────┬────────┘                                                       └────────┬────────┘
-         │                                                                         │
-         ▼                                                                         ▼
-┌─────────────────┐                                                       ┌─────────────────┐
-│    WhatsApp     │                                                       │    WhatsApp     │
-│   (Patients)    │                                                       │    (Leads)      │
-└─────────────────┘                                                       └─────────────────┘
+                                    ┌→ Sofia (unknown contact = lead)
+WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
+       (Railway)        ↑                   └→ Yara (authorized team member)
+                 n8n HTTP Request
 ```
+
+**Routing Logic:**
+1. Sender in `AUTHORIZED_PHONES` → Yara
+2. Sender in Patients Google Sheet → Diana
+3. Otherwise → Sofia
 
 ## Tech Stack
 
-| Component | Sofia | Diana |
-|-----------|-------|-------|
-| Automation | n8n AI Agent Node | n8n AI Agent Node |
-| LLM | Claude Haiku 4.5 | Claude Haiku 4.5 |
-| Memory | Window Buffer (20 msgs) | Window Buffer (10 msgs) |
-| Vector DB | Qdrant | Qdrant |
-| Embeddings | OpenAI text-embedding-3-small | OpenAI text-embedding-3-small |
-| Data Storage | Supabase | Google Sheets |
-| WhatsApp | Official API or Evolution API | Official API or Evolution API |
-| Notifications | Telegram | Telegram |
+| Component | Technology |
+|-----------|------------|
+| Automation | n8n AI Agent Node |
+| LLM | Claude Haiku 4.5 |
+| Vector DB | Qdrant |
+| Embeddings | OpenAI text-embedding-3-small |
+| Data Storage | Google Sheets |
+| WhatsApp | Evolution API (Railway) |
+| Notifications | Telegram |
 
 ## Project Structure
 
 ```
 ragbot/
-├── workflows/                            # Meta WhatsApp API workflows
-│   ├── sofia-alternative-flow.json       # Sofia: Lead qualification (WhatsApp)
-│   ├── sofia-zapi-flow.json              # Sofia: Z-API alternative
-│   ├── diana-patient-checkin.json        # Diana: Patient check-ins (WhatsApp)
-│   └── yara-executive-assistant.json     # Yara: Executive assistant (Telegram)
-├── evolution/                            # Evolution API (self-hosted WhatsApp)
-│   ├── README.md                         # Setup guide
-│   ├── docker-compose.yml                # Local development
-│   └── workflows/                        # Standalone Evolution workflows
-│       ├── sofia-standalone.json
-│       ├── diana-standalone.json
-│       └── yara-evolution.json
-├── knowledge-base/                       # RAG documents
+├── workflows/                       # n8n workflow JSON exports
+│   ├── sofia-standalone.json        # Lead qualification
+│   ├── diana-standalone.json        # Patient check-ins
+│   └── yara-evolution.json          # Executive assistant
+├── knowledge-base/                  # RAG documents (markdown)
 │   ├── institutional/
-│   │   └── about_clinic.md
 │   ├── treatments/
-│   │   ├── methodology.md
-│   │   └── tirzepatide_checkin.md
 │   ├── faq/
-│   │   └── general_questions.md
 │   ├── objection_handling/
-│   │   └── price_objections.md
 │   └── compliance/
-│       └── medical_disclaimers.md
-├── prompts/
-│   ├── system-prompt.md                  # Sofia system prompt
-│   ├── diana-prompt.md                   # Diana system prompt
-│   └── yara-prompt.md                    # Yara system prompt
-├── database/
-│   └── schema.sql                        # Supabase schema
-├── dashboard/
-│   ├── index.html                        # Analytics dashboard
-│   ├── app.js
-│   └── styles.css
-├── templates/                            # Google Sheets CSV templates
-│   ├── Patients.csv                      # Patient master data
-│   ├── CheckIns.csv                      # Simplified check-in log
-│   └── README.md                         # Import instructions
+├── prompts/                         # Agent system prompts
+│   ├── system-prompt.md             # Sofia
+│   ├── diana-prompt.md              # Diana
+│   └── yara-prompt.md               # Yara
+├── scripts/
+│   ├── embed_knowledge_base.js      # RAG embedding script
+│   └── setup-webhooks.sh            # Evolution API webhooks
+├── templates/                       # Google Sheets templates
 └── docs/
-    ├── SETUP.md                          # Sofia setup instructions
-    ├── PATIENT_CHECKIN_SETUP.md          # Diana setup instructions
-    ├── YARA_SETUP.md                     # Yara setup instructions
-    └── WHATSAPP_SETUP.md                 # WhatsApp Business API setup
+    ├── EVOLUTION_SETUP.md           # Setup guide
+    └── ROADMAP.md                   # Future plans
 ```
 
 ## Quick Start
@@ -120,322 +68,141 @@ ragbot/
 ### Prerequisites
 
 - n8n instance (self-hosted or cloud)
+- Railway account (for Evolution API)
 - Qdrant vector database
-- Supabase account (for Sofia)
-- Google Sheets (for Diana)
-- WhatsApp Business API access
-- OpenAI API key (for embeddings)
-- Anthropic API key (for Claude Haiku 4.5)
-- Telegram bot (for notifications)
+- Google Sheets
+- OpenAI API key
+- Anthropic API key
+- Telegram bot
 
-### Setup Guides
+### Setup
 
-- **Sofia Setup**: See [docs/SETUP.md](docs/SETUP.md)
-- **Diana Setup**: See [docs/PATIENT_CHECKIN_SETUP.md](docs/PATIENT_CHECKIN_SETUP.md)
-- **Evolution API**: See [evolution/README.md](evolution/README.md)
+1. **Deploy Evolution API** on Railway - see [docs/EVOLUTION_SETUP.md](docs/EVOLUTION_SETUP.md)
+2. **Import workflows** to n8n from `workflows/`
+3. **Configure credentials** in n8n
+4. **Embed knowledge base**: `node scripts/embed_knowledge_base.js`
+5. **Scan QR code** to connect WhatsApp
 
 ---
 
-## Sofia - Sales Assistant
+## Sofia - Lead Qualification
 
-### Purpose
-WhatsApp assistant for lead qualification, value building, and appointment scheduling.
+Qualifies leads from Meta Ads, builds value, and schedules appointments.
 
-### Features
-- **Conversation Memory**: 20-message window buffer per user
-- **RAG Knowledge Base**: Retrieves clinic info, treatments, FAQ
-- **Natural Data Collection**: Collects name, email, CEP naturally
-- **Handoff Detection**: Triggers human escalation when needed
-- **Conversation Logging**: Stores all interactions in Supabase
-
-### Conversation Flow
-
+### Flow
 1. **Greeting** - Welcome, LGPD consent
-2. **Discovery** - Understand user goals
-3. **Qualification** - Collect contact data naturally
-4. **Value Building** - Explain methodology, handle objections
+2. **Discovery** - Understand goals
+3. **Qualification** - Collect contact data
+4. **Value Building** - Handle objections
 5. **Scheduling** - Book appointment
-6. **Confirmation** - Send details
+6. **Handoff** - Transfer to human support
 
-### Sofia Personality
-
+### Personality
 - Professional, concise, empathetic
-- Portuguese (Brazilian) primary language
-- NO emojis - clean, professional messages
-- Natural conversational data collection
-- Never pushy, always respectful
-
-### Pricing Rules
-
-| Item | Rule |
-|------|------|
-| Consultation (R$700) | Can mention after building value |
-| Treatment (R$3,000+) | NEVER mention specific value |
-
-### Handoff Triggers
-
-- Pregnancy/breastfeeding
-- Serious medical conditions
-- User frustration (negative sentiment)
-- Direct request for human
-- Business negotiations
+- Brazilian Portuguese
+- NO emojis
+- Never pushy
 
 ---
 
-## Diana - Patient Check-in Agent
+## Diana - Patient Check-ins
 
-### Purpose
-Weekly check-in automation for patients on Tirzepatide (Mounjaro) treatment plans.
+Weekly check-ins for Tirzepatide treatment patients.
 
 ### Features
-- **Scheduled Check-ins**: Sends messages every Saturday at 11 AM
-- **Treatment Tracking**: Monitors remaining weeks, deducts automatically
-- **AI Summaries**: Generates summaries of patient responses (handles multi-message conversations)
-- **Follow-up Detection**: AI flags patients needing doctor follow-up
-- **Renewal Reminders**: Alerts at 2 weeks and 1 week remaining
-- **Team Handoff**: Telegram notifications with full context (patient message, summary, Diana's response)
-- **Google Sheets Integration**: Patient data + simplified check-in log
+- **Scheduled Check-ins**: Saturdays 11 AM
+- **Treatment Tracking**: Auto-deducts weeks
+- **AI Summaries**: Logs patient responses
+- **Follow-up Detection**: Flags patients needing attention
+- **Renewal Reminders**: Alerts at 2 weeks remaining
 
 ### Treatment Plans
 
-| Plan | Duration | Use Case |
-|------|----------|----------|
-| Starter | 4 weeks | Initial evaluation |
-| Standard | 12 weeks | Recommended plan |
-| Extended | 16 weeks | Best results |
+| Plan | Duration |
+|------|----------|
+| Starter | 4 weeks |
+| Standard | 12 weeks |
+| Extended | 16 weeks |
 
-### Check-in Flow
-
-```
-OUTBOUND (Saturday 11 AM)                    INBOUND (Patient Response)
-─────────────────────────                    ─────────────────────────
-Read Active Patients                         Receive WhatsApp message
-        │                                            │
-        ▼                                            ▼
-Filter: REMAINING_WEEKS > 0                  Lookup patient in Sheets
-        │                                            │
-        ▼                                            ▼
-Generate AI check-in message                 Diana responds conversationally
-        │                                    (uses memory for multi-message)
-        ▼                                            │
-Send via WhatsApp                                    ▼
-        │                                    AI generates SUMMARY of report
-        ▼                                            │
-Deduct 1 from REMAINING_WEEKS                        ▼
-        │                                    Log to CheckIns sheet:
-        ▼                                    DATE | PATIENT | WEEK | SUMMARY | FOLLOW_UP
-Check Treatment Status:                              │
-├─► 2 weeks: Notify team                             ▼
-├─► Last week: Mark complete             If follow-up needed:
-└─► Ongoing: Continue                    → Alert team via Telegram
-                                           (includes full context)
-```
-
-### Renewal Flow
-
-1. **2 Weeks Remaining**: Diana sends reminder, asks about renewal, team notified
-2. **1 Week Remaining**: Final check-in, asks about experience, marks treatment complete
-3. **Team Handoff**: Telegram message with full patient info for follow-up
-
-### Diana Personality
-
-- Warm, professional, empathetic
-- Portuguese (Brazilian) default, switches to English if patient uses it
-- NO emojis - clean, professional messages
-- Never provides medical advice
-- Always encourages contacting doctor for concerns
-
-### Google Sheets Structure
-
-**Patients Sheet** (master data):
-```
-NAME | PHONE | STARTING_DATE | TOTAL_WEEKS_CONTRACTED | REMAINING_WEEKS | CURRENT_DOSE | PAYMENT_METHOD | LAST_PAYMENT | LAST_CHECKIN | STATUS
-```
-
-**CheckIns Sheet** (simplified log with AI summaries):
-```
-DATE | PATIENT_NAME | PHONE | WEEK | SUMMARY | FOLLOW_UP_NEEDED
-```
-
-Import templates from `templates/` folder. See `templates/README.md` for instructions.
+### Escalation Triggers
+- Persistent vomiting (>24h)
+- Severe abdominal pain
+- Allergic reactions
+- Hypoglycemia signs
 
 ---
 
-## Credentials Setup
+## Yara - Executive Assistant
 
-All credentials are configured in **n8n Credentials Manager** (not environment variables).
+Telegram-based assistant for clinic management.
 
-| Credential | Type | Used By |
-|------------|------|---------|
-| `google-sheets-creds` | Google Sheets OAuth2 | Diana, Yara |
-| `anthropic-creds` | Anthropic API | Sofia, Diana, Yara |
-| `openai-creds` | OpenAI API | Sofia, Diana, Yara |
-| `qdrant-creds` | Qdrant API | Sofia, Diana, Yara |
-| `telegram-creds` | Telegram API | Diana, Yara |
-| `whatsapp-creds` | WhatsApp Business API | Sofia, Diana |
-| `whatsapp-trigger-creds` | WhatsApp Trigger | Sofia, Diana |
-| `whatsapp-bearer-creds` | HTTP Header Auth | Sofia (media download) |
+### Capabilities
+- Query patient data
+- Review check-in history
+- Identify treatment patterns
+- Access knowledge base
+- Generate analytics
 
-See [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md) for WhatsApp credential setup.
+### Sample Queries
+```
+"Quantos pacientes estao em tratamento?"
+"Qual o status do paciente Maria Silva?"
+"Liste os pacientes com follow-up pendente"
+```
 
-### Environment Variables (for embedding script only)
+---
+
+## Configuration
+
+### n8n Credentials
+
+| Credential | Type |
+|------------|------|
+| `evolution-api-creds` | Header Auth |
+| `google-sheets-creds` | Google OAuth2 |
+| `anthropic-creds` | Anthropic API |
+| `openai-creds` | OpenAI API |
+| `qdrant-creds` | Qdrant API |
+| `telegram-creds` | Telegram Bot |
+
+### Environment Variables
 
 ```env
-# Used by: node scripts/embed_knowledge_base.js
+# Evolution API
+EVOLUTION_API_URL=https://your-railway-domain.up.railway.app
+EVOLUTION_API_KEY=your-api-key
+
+# Embedding Script
 OPENAI_API_KEY=sk-xxxxx
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your_key
 QDRANT_COLLECTION_NAME=clinic_knowledge_base
 ```
 
-## Dashboard
+---
 
-The unified dashboard provides monitoring for both agents:
+## Adding Knowledge
 
-### Sofia Section
-- Total conversations
-- Active conversations
-- Scheduled appointments
-- Handoff queue
-- Conversation analytics
-- Stage distribution
-
-### Diana Section
-- Active patients
-- Treatments in progress
-- Pending renewals
-- Completed treatments
-- Check-in history
-- Side effects tracking
-- Renewal flow visualization
-
-### Setup
-1. Deploy `dashboard/` folder to any static hosting
-2. Enter Supabase credentials for Sofia data
-3. Diana data is read from Google Sheets (configure in n8n)
-
-## Adding New Knowledge
-
-1. Create/edit markdown file in `knowledge-base/`
-2. Use frontmatter for metadata:
+1. Create markdown file in `knowledge-base/`
+2. Add YAML frontmatter:
 ```yaml
 ---
 category: treatments
-language: pt
 tags: [treatment, protocol]
 priority: high
 ---
 ```
-3. Run the embedding script:
-```bash
-node scripts/embed_knowledge_base.js
-```
-4. New content is immediately available to all agents
+3. Run: `node scripts/embed_knowledge_base.js`
 
 ---
 
-## Yara - Executive Assistant
+## Documentation
 
-Yara is a Telegram-based AI assistant for the clinic management team, providing centralized access to all clinic data.
-
-### Features
-
-| Feature | Description |
-|---------|-------------|
-| Patient Data Query | Access Diana's patient database |
-| Check-in Analytics | Review check-in history and side effects |
-| Pattern Recognition | Identify trends in treatments |
-| Knowledge Base | Answer questions about clinic protocols |
-| Memory | 20-message conversation context |
-
-### Sample Queries
-
-```
-"Quantos pacientes estao em tratamento?"
-"Qual o status do paciente Maria Silva?"
-"Quais pacientes reportaram efeitos colaterais?"
-"Liste os pacientes com follow-up pendente"
-"Quem precisa de renovacao esta semana?"
-"Gere uma analise dos efeitos colaterais mais frequentes"
-```
-
-### Setup
-
-See [docs/YARA_SETUP.md](docs/YARA_SETUP.md) for complete setup instructions.
-
-### Quick Setup
-
-1. Create Telegram bot via @BotFather
-2. Get your Telegram user ID via @userinfobot
-3. Import `yara-executive-assistant.json` (single consolidated workflow)
-4. Configure credentials and activate
-5. Chat with Yara on Telegram!
-
-### Configuration
-
-Yara uses hardcoded values in the workflow JSON. To change authorized users:
-1. Open `workflows/yara-executive-assistant.json`
-2. Update `TELEGRAM_CHAT_ID` and `YARA_AUTHORIZED_USER_ID` values
-3. Re-import the workflow into n8n
-
----
-
-## WhatsApp Architecture
-
-### Option 1: Official Meta API (Dual Numbers)
-Sofia and Diana use **separate WhatsApp Business numbers** to avoid message routing conflicts:
-
-| Agent | Phone Number | Purpose |
-|-------|--------------|---------|
-| Sofia | Leads line | Meta Ads, new inquiries |
-| Diana | Patients line | Existing patient check-ins |
-
-### Option 2: Evolution API (Single Number)
-Self-hosted WhatsApp integration with intelligent routing:
-
-```
-                                    ┌→ Sofia (unknown contact = lead)
-WhatsApp ← QR → Evolution API → n8n Router →→ Diana (known patient)
-       (Railway)                           └→ Yara (authorized team member)
-```
-
-**Routing Logic:**
-1. Sender in `AUTHORIZED_PHONES` → Yara
-2. Sender in Patients sheet → Diana
-3. Otherwise → Sofia
-
-**Setup:** See `evolution/README.md` for deployment guide.
-
-| Feature | Official API | Evolution API |
-|---------|--------------|---------------|
-| Setup | Complex (Meta approval) | Simple (QR scan) |
-| Cost | Per-message | Self-hosted (free) |
-| Stability | High | Medium |
-
----
-
-## All Agents Summary
-
-### Sofia (Lead Qualification)
-- **Channel**: WhatsApp (leads line)
-- **Trigger**: Incoming messages from Meta Ads leads
-- **Goal**: Qualify leads and schedule consultations
-- **Handoff**: WhatsApp notification to human support
-- **Memory**: 50 messages
-
-### Diana (Patient Check-ins)
-- **Channel**: WhatsApp (patients line)
-- **Trigger**: Weekly schedule (Saturdays 11 AM) + patient responses
-- **Goal**: Check patient well-being, track treatment progress
-- **Handoff**: Telegram notification for follow-ups
-- **Memory**: 10 messages per patient
-
-### Yara (Executive Assistant)
-- **Channel**: Telegram
-- **Trigger**: Direct messages from authorized users
-- **Goal**: Provide data access and analytics to management
-- **Access**: Patient data, check-in logs, knowledge base
-- **Memory**: 20 messages per session
+| Doc | Purpose |
+|-----|---------|
+| [EVOLUTION_SETUP.md](docs/EVOLUTION_SETUP.md) | Complete setup guide |
+| [ROADMAP.md](docs/ROADMAP.md) | Future improvements |
+| [templates/README.md](templates/README.md) | Google Sheets setup |
 
 ## License
 
